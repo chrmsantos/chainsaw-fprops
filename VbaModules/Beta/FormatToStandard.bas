@@ -29,7 +29,7 @@ Private Const FOOTER_DISTANCE_CM As Double = 0.7
 ' Header image constants
 Private Const HEADER_IMAGE_RELATIVE_PATH As String = "\Documents\Configurations\DefaultHeader.png"
 Private Const HEADER_IMAGE_MAX_WIDTH_CM As Single = 14.8 ' cm (standard A4 width minus margins)
-Private Const HEADER_IMAGE_TOP_MARGIN_CM As Single = 0.25 ' cm from top of page
+Private Const HEADER_IMAGE_TOP_MARGIN_CM As Single = 0.27 ' cm from top of page
 Private Const HEADER_IMAGE_HEIGHT_RATIO As Single = 0.22 ' Height/width ratio (adjust as needed)
 
 '================================================================================
@@ -53,10 +53,10 @@ Public Sub FormatDocumentStandard()
     End With
     
     ' Execute formatting steps
+    editCount = editCount + ResetBasicFormatting(doc)
     editCount = editCount + RemoveLeadingBlankLines(doc)
     editCount = editCount + CleanDocumentSpacing(doc)
     editCount = editCount + ApplyStandardFormatting(doc)
-    editCount = editCount + ResetBasicFormatting(doc)
     editCount = editCount + RemoveAllWatermarks(doc)
     editCount = editCount + InsertStandardHeaderImage(doc)
     
