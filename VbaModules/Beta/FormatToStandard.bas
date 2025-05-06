@@ -20,14 +20,14 @@ Private Const LINE_SPACING As Long = 12 ' Points
 
 ' Margin constants in centimeters
 Private Const TOP_MARGIN_CM As Double = 4.5
-Private Const BOTTOM_MARGIN_CM As Double = 3.0
-Private Const LEFT_MARGIN_CM As Double = 3.0
-Private Const RIGHT_MARGIN_CM As Double = 3.0
+Private Const BOTTOM_MARGIN_CM As Double = 3#
+Private Const LEFT_MARGIN_CM As Double = 3#
+Private Const RIGHT_MARGIN_CM As Double = 3#
 Private Const HEADER_DISTANCE_CM As Double = 0.7
 Private Const FOOTER_DISTANCE_CM As Double = 0.7
 
 ' Header image constants
-Private Const HEADER_IMAGE_PATH As String = "C:\Users\YourUsername\Documents\Configurations\DefaultHeader.png"
+Private Const HEADER_IMAGE_RELATIVE_PATH As String = "\Documents\Configurations\DefaultHeader.png"
 Private Const HEADER_IMAGE_WIDTH As Single = 468 ' 6.5 inches in points
 Private Const HEADER_IMAGE_HEIGHT As Single = 72 ' 1 inch in points
 
@@ -79,6 +79,68 @@ ErrorHandler:
         .StatusBar = False
     End With
 End Sub
+
+'================================================================================
+' HEADER IMAGE FUNCTION (UPDATED TO USE ENVIRONMENT VARIABLE)
+'================================================================================
+
+Private Function InsertStandardHeaderImage(doc As Document) As Long
+    On Error GoTo ErrorHandler
+    
+    Dim edits As Long: edits = 0
+    Dim sec As section
+    Dim header As HeaderFooter
+    Dim imgFile As String
+    Dim username As String
+    
+    ' Get current username from environment variable
+    username = Environ("USERNAME")
+    
+    ' Build full image path
+    imgFile = "C:\Users\" & username & HEADER_IMAGE_RELATIVE_PATH
+    
+    ' Check if image file exists
+    If Dir(imgFile) = "" Then
+        MsgBox "Header image not found at: " & vbCrLf & imgFile, vbExclamation, "Image Missing"
+        Exit Function
+    End If
+    
+    ' Process each section
+    For Each sec In doc.Sections
+        ' Modify primary headers
+        Set header = sec.Headers(wdHeaderFooterPrimary)
+        
+        ' Clear existing header content
+        header.LinkToPrevious = False
+        header.Range.Delete
+        
+        ' Insert and format the image
+        With header.Shapes.AddPicture( _
+            fileName:=imgFile, _
+            LinkToFile:=False, _
+            SaveWithDocument:=True, _
+            Left:=0, _
+            Top:=0, _
+            Width:=HEADER_IMAGE_WIDTH, _
+            Height:=HEADER_IMAGE_HEIGHT)
+            
+            .WrapFormat.Type = wdWrapTopBottom
+            .RelativeHorizontalPosition = wdRelativeHorizontalPositionPage
+            .RelativeVerticalPosition = wdRelativeVerticalPositionPage
+            .Left = wdShapeCenter
+            .Top = 0
+        End With
+        
+        edits = edits + 1
+    Next sec
+    
+    InsertStandardHeaderImage = edits
+    Exit Function
+    
+ErrorHandler:
+    HandleError "InsertStandardHeaderImage"
+    InsertStandardHeaderImage = edits
+End Function
 
 '================================================================================
 ' DOCUMENT VALIDATION FUNCTIONS
@@ -266,9 +328,9 @@ Private Function RemoveAllWatermarks(doc As Document) As Long
     On Error GoTo ErrorHandler
     
     Dim edits As Long: edits = 0
-    Dim sec As Section
+    Dim sec As section
     Dim hdr As HeaderFooter
-    Dim shp As Shape
+    Dim shp As shape
     
     ' Process all sections and headers
     For Each sec In doc.Sections
@@ -290,62 +352,6 @@ ErrorHandler:
 End Function
 
 '================================================================================
-' HEADER IMAGE FUNCTION
-'================================================================================
-
-Private Function InsertStandardHeaderImage(doc As Document) As Long
-    On Error GoTo ErrorHandler
-    
-    Dim edits As Long: edits = 0
-    Dim sec As Section
-    Dim header As HeaderFooter
-    Dim imgFile As String
-    
-    ' Check if image file exists
-    imgFile = HEADER_IMAGE_PATH
-    If Dir(imgFile) = "" Then
-        MsgBox "Header image not found at: " & vbCrLf & imgFile, vbExclamation, "Image Missing"
-        Exit Function
-    End If
-    
-    ' Process each section
-    For Each sec In doc.Sections
-        ' Modify primary headers
-        Set header = sec.Headers(wdHeaderFooterPrimary)
-        
-        ' Clear existing header content
-        header.LinkToPrevious = False
-        header.Range.Delete
-        
-        ' Insert and format the image
-        With header.Shapes.AddPicture( _
-            FileName:=imgFile, _
-            LinkToFile:=False, _
-            SaveWithDocument:=True, _
-            Left:=0, _
-            Top:=0, _
-            Width:=HEADER_IMAGE_WIDTH, _
-            Height:=HEADER_IMAGE_HEIGHT)
-            
-            .WrapFormat.Type = wdWrapTopBottom
-            .RelativeHorizontalPosition = wdRelativeHorizontalPositionPage
-            .RelativeVerticalPosition = wdRelativeVerticalPositionPage
-            .Left = wdShapeCenter
-            .Top = 0
-        End With
-        
-        edits = edits + 1
-    Next sec
-    
-    InsertStandardHeaderImage = edits
-    Exit Function
-    
-ErrorHandler:
-    HandleError "InsertStandardHeaderImage"
-    InsertStandardHeaderImage = edits
-End Function
-
-'================================================================================
 ' HELPER FUNCTIONS
 '================================================================================
 
@@ -357,7 +363,8 @@ Private Sub HandleError(procedureName As String)
     Dim errMsg As String
     errMsg = "Error in " & procedureName & ":" & vbCrLf & _
               "Error #" & Err.Number & vbCrLf & _
-              Err.Description
+              Err.description
     MsgBox errMsg, vbCritical, "Formatting Error"
     Debug.Print errMsg
 End Sub
+
