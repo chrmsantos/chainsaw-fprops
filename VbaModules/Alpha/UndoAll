@@ -21,16 +21,22 @@ Sub UndoAllChanges()
         Exit Sub
     End If
 
-    ' Desativa a atualização da tela para melhorar a performance
+    ' Desativa atualizações e eventos para melhorar o desempenho
     Application.ScreenUpdating = False
+    Application.EnableEvents = False
 
     ' Desfaz todas as alterações realizadas no documento
-    While doc.Undo
-        ' Continua desfazendo até que não haja mais alterações
-    Wend
+    Dim undoCount As Long: undoCount = 0
+    Dim maxUndo As Long: maxUndo = 1000 ' Limite de operações de desfazer (ajustável)
+    
+    Do While doc.Undo
+        undoCount = undoCount + 1
+        If undoCount >= maxUndo Then Exit Do ' Evita loops infinitos em documentos muito grandes
+    Loop
 
-    ' Restaura a atualização da tela
+    ' Restaura configurações
     Application.ScreenUpdating = True
+    Application.EnableEvents = True
 
     ' Mensagem de conclusão
     MsgBox "Todas as alterações realizadas desde a abertura do arquivo ou do último salvamento foram desfeitas com sucesso.", _
@@ -38,6 +44,8 @@ Sub UndoAllChanges()
     Exit Sub
 
 ErrorHandler:
-    ' Tratamento de erros
-    MsgBox "Erro " & Err.Number & ": " & Err.description, vbCritical, "Erro ao Desfazer Alterações"
+    ' Restaura configurações em caso de erro
+    Application.ScreenUpdating = True
+    Application.EnableEvents = True
+    MsgBox "Erro " & Err.Number & ": " & Err.Description, vbCritical, "Erro ao Desfazer Alterações"
 End Sub
