@@ -1,0 +1,43 @@
+'--------------------------------------------------------------------------------
+' Botão: Refaz todas as alterações
+'--------------------------------------------------------------------------------
+' SUBROTINA: RedoAllChanges
+' Finalidade: Refaz todas as alterações realizadas no documento ativo.
+'--------------------------------------------------------------------------------
+Sub RedoAllChanges()
+    On Error GoTo ErrorHandler
+
+    ' Verifica se há um documento ativo
+    If Documents.Count = 0 Then
+        MsgBox "Nenhum documento está aberto para refazer alterações.", vbExclamation, "Documento não encontrado"
+        Exit Sub
+    End If
+
+    Dim doc As Document: Set doc = ActiveDocument
+
+    ' Verifica se há alterações a serem refeitas
+    If doc.Saved Then
+        MsgBox "Nenhuma alteração foi realizada desde o último salvamento.", vbInformation, "Nada a refazer"
+        Exit Sub
+    End If
+
+    ' Desativa a atualização da tela para melhorar a performance
+    Application.ScreenUpdating = False
+
+    ' Refaz todas as alterações realizadas no documento
+    While doc.Redo
+        ' Continua refazendo até que não haja mais alterações
+    Wend
+
+    ' Restaura a atualização da tela
+    Application.ScreenUpdating = True
+
+    ' Mensagem de conclusão
+    MsgBox "Todas as alterações realizadas desde a abertura do arquivo ou do último salvamento foram refeitas com sucesso.", _
+           vbInformation, "Alterações Refeitas"
+    Exit Sub
+
+ErrorHandler:
+    ' Tratamento de erros
+    MsgBox "Erro " & Err.Number & ": " & Err.description, vbCritical, "Erro ao Refazer Alterações"
+End Sub
