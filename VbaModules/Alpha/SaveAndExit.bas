@@ -1,7 +1,7 @@
 '--------------------------------------------------------------------------------
 ' Botão: Salvar, fechar e minimizar o Word
 '--------------------------------------------------------------------------------
-' SUBROTINA: SaveCloseAndMinimizeWord
+' SUBROTINA: SaveAndExit
 ' Finalidade: Salva o documento ativo, fecha-o e minimiza a janela do Microsoft Word.
 '--------------------------------------------------------------------------------
 Sub SaveAndExit()
