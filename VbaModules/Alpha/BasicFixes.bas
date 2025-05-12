@@ -34,15 +34,15 @@ Private Const FOOTER_DISTANCE_CM As Double = 0.7 ' Distance from footer to conte
 Private Const HEADER_IMAGE_RELATIVE_PATH As String = "\RevisorDeProposituras\Personalizations\DefaultHeader.png" ' Relative path to the header image
 Private Const HEADER_IMAGE_MAX_WIDTH_CM As Single = 17 ' Maximum width of the header image in cm
 Private Const HEADER_IMAGE_TOP_MARGIN_CM As Single = 0.27 ' Top margin for the header image in cm
-Private Const HEADER_IMAGE_HEIGHT_RATIO As Single = 0.24 ' Height-to-width ratio for the header image
+Private Const HEADER_IMAGE_HEIGHT_RATIO As Single = 0.21 ' Height-to-width ratio for the header image
 
 '================================================================================
-' MAIN PROCEDURE: FormatDocumentStandard
+' MAIN PROCEDURE: BasicFixes
 '================================================================================
 ' Purpose: Orchestrates the document formatting process by calling various helper
 ' functions to apply standard formatting, clean up spacing, and insert headers.
 '================================================================================
-Public Sub FormatDocumentStandard()
+Public Sub BasicFixes()
     On Error GoTo ErrorHandler ' Enable error handling
     
     ' Validate document state
@@ -79,7 +79,7 @@ Public Sub FormatDocumentStandard()
     
 ErrorHandler:
     ' Handle errors and restore application state
-    HandleError "FormatDocumentStandard"
+    HandleError "BasicFixes"
     With Application
         .ScreenUpdating = True
         .StatusBar = False
@@ -110,7 +110,7 @@ Private Function IsDocumentValid() As Boolean
     End If
     
     ' Check if the document contains any text
-    If Len(Trim(ActiveDocument.Content.Text)) = 0 Then
+    If Len(Trim(ActiveDocument.Content.text)) = 0 Then
         MsgBox "The document contains no text to format.", _
                vbExclamation, "Empty Document"
         Exit Function
@@ -137,7 +137,7 @@ Private Sub RemoveLeadingBlankLines(doc As Document)
     
     ' Loop through and remove blank paragraphs at the beginning
     Set firstPara = doc.Paragraphs(1)
-    Do While Len(Trim(firstPara.Range.Text)) = 0 ' Check if the paragraph is blank
+    Do While Len(Trim(firstPara.Range.text)) = 0 ' Check if the paragraph is blank
         firstPara.Range.Delete ' Delete the blank paragraph
         If doc.Paragraphs.Count = 0 Then Exit Do ' Exit if no more paragraphs exist
         Set firstPara = doc.Paragraphs(1) ' Update the first paragraph
@@ -171,8 +171,8 @@ Private Sub CleanDocumentSpacing(doc As Document)
     ' Replace multiple spaces with a single space
     With searchRange.Find
         .ClearFormatting
-        .Text = "  " ' Two spaces
-        .Replacement.Text = " " ' Single space
+        .text = "  " ' Two spaces
+        .Replacement.text = " " ' Single space
         .Forward = True
         .Wrap = wdFindContinue
         .MatchWildcards = False
@@ -181,8 +181,8 @@ Private Sub CleanDocumentSpacing(doc As Document)
     
     ' Replace multiple paragraph breaks with a single break
     With searchRange.Find
-        .Text = "^p^p" ' Two paragraph marks
-        .Replacement.Text = "^p" ' Single paragraph mark
+        .text = "^p^p" ' Two paragraph marks
+        .Replacement.text = "^p" ' Single paragraph mark
         .Execute Replace:=wdReplaceAll
     End With
     
@@ -227,17 +227,17 @@ Private Sub ApplyStandardFormatting(doc As Document)
         With para.Range.ParagraphFormat
             ' Apply standard formatting to all paragraphs except the third
             If paraIndex <> 3 Then
-                .LeftIndent = 0
+                .leftIndent = 0
                 .RightIndent = 0
                 .FirstLineIndent = CentimetersToPoints(2.5) ' First line indent
-                .Alignment = wdAlignParagraphJustify ' Justified alignment
+                .alignment = wdAlignParagraphJustify ' Justified alignment
             End If
             
             ' Apply specific formatting to the third paragraph
             If paraIndex = 3 Then
-                .LeftIndent = CentimetersToPoints(9) ' Left indent of 9 cm
+                .leftIndent = CentimetersToPoints(9) ' Left indent of 9 cm
                 .FirstLineIndent = 0 ' No first line indent
-                .Alignment = wdAlignParagraphLeft ' Left alignment
+                .alignment = wdAlignParagraphLeft ' Left alignment
             End If
             
             .SpaceBefore = 0
@@ -249,12 +249,12 @@ Private Sub ApplyStandardFormatting(doc As Document)
     Next para
 
     ' Apply font formatting to headers and footers
-    Dim sec As Section
+    Dim sec As section
     Dim hdrFtr As HeaderFooter
     For Each sec In doc.Sections
         ' Format headers
         For Each hdrFtr In sec.Headers
-            If Len(Trim(hdrFtr.Range.Text)) > 0 Then
+            If Len(Trim(hdrFtr.Range.text)) > 0 Then
                 With hdrFtr.Range.Font
                     .Name = STANDARD_FONT
                     .Size = STANDARD_FONT_SIZE
@@ -267,7 +267,7 @@ Private Sub ApplyStandardFormatting(doc As Document)
         
         ' Format footers
         For Each hdrFtr In sec.Footers
-            If Len(Trim(hdrFtr.Range.Text)) > 0 Then
+            If Len(Trim(hdrFtr.Range.text)) > 0 Then
                 With hdrFtr.Range.Font
                     .Name = STANDARD_FONT
                     .Size = STANDARD_FONT_SIZE
@@ -311,9 +311,9 @@ End Sub
 Private Sub RemoveAllWatermarks(doc As Document)
     On Error GoTo ErrorHandler ' Enable error handling
     
-    Dim sec As Section ' Variable to hold each section
+    Dim sec As section ' Variable to hold each section
     Dim hdr As HeaderFooter ' Variable to hold each header/footer
-    Dim shp As Shape ' Variable to hold each shape
+    Dim shp As shape ' Variable to hold each shape
     
     ' Loop through all sections and headers
     For Each sec In doc.Sections
@@ -339,7 +339,7 @@ End Sub
 Private Sub InsertStandardHeaderImage(doc As Document)
     On Error GoTo ErrorHandler ' Enable error handling
     
-    Dim sec As Section ' Variable to hold each section
+    Dim sec As section ' Variable to hold each section
     Dim header As HeaderFooter ' Variable to hold the primary header
     Dim imgFile As String ' Path to the header image
     Dim username As String ' Current username
@@ -418,7 +418,8 @@ Private Sub HandleError(procedureName As String)
     Dim errMsg As String ' Variable to hold the error message
     errMsg = "Error in " & procedureName & ":" & vbCrLf & _
               "Error #" & Err.Number & vbCrLf & _
-              Err.Description
+              Err.description
     MsgBox errMsg, vbCritical, "Formatting Error" ' Display the error message
     Debug.Print errMsg ' Log the error message to the debug console
 End Sub
+
