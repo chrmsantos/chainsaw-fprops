@@ -45,14 +45,33 @@ Private Const HEADER_IMAGE_HEIGHT_RATIO As Single = 0.21 ' Height-to-width ratio
 Public Sub BasicFixes()
     On Error GoTo ErrorHandler ' Enable error handling
     
+    ' Verifica se a versão do Word é 2007 ou superior
+    If Application.Version < 12 Then
+        MsgBox "Este script requer o Microsoft Word 2007 ou superior.", vbExclamation, "Versão Incompatível"
+        Exit Sub
+    End If
+    
     ' Validate document state
     If Not IsDocumentValid() Then Exit Sub ' Exit if the document is invalid
     
     Dim doc As Document ' Variable to hold the active document
     Set doc = ActiveDocument
     
+    ' Verifica se o documento está protegido
+    If doc.ProtectionType <> wdNoProtection Then
+        MsgBox "O documento está protegido. Por favor, desproteja-o antes de continuar.", _
+               vbExclamation, "Documento Protegido"
+        Exit Sub
+    End If
+    
     ' Enable Word's native track changes feature
+    On Error Resume Next
     doc.TrackRevisions = True ' Activate track changes
+    If Err.Number <> 0 Then
+        MsgBox "O recurso 'Rastrear Alterações' não é suportado nesta versão do Word.", vbExclamation, "Recurso Não Suportado"
+        Err.Clear
+    End If
+    On Error GoTo ErrorHandler
     
     ' Optimize performance by disabling screen updates
     With Application
@@ -62,8 +81,15 @@ Public Sub BasicFixes()
     
     ' Execute formatting steps
     ResetBasicFormatting doc ' Reset basic formatting
+    
+    ' Apply justified alignment to the entire document
+    With doc.Content.ParagraphFormat
+        .Alignment = wdAlignParagraphJustify ' Justify alignment
+    End With
+    
     RemoveLeadingBlankLines doc ' Remove leading blank lines
     CleanDocumentSpacing doc ' Clean up document spacing
+    ApplySpellingAndGrammarCorrections doc ' Apply spelling and grammar corrections
     ApplyStandardFormatting doc ' Apply standard formatting
     RemoveAllWatermarks doc ' Remove watermarks
     InsertStandardHeaderImage doc ' Insert standard header image
@@ -78,6 +104,8 @@ Public Sub BasicFixes()
     MsgBox "Document formatting completed successfully.", _
            vbInformation, "Formatting Complete"
     
+    ' Limpeza de variáveis
+    Set doc = Nothing
     Exit Sub ' Exit the procedure
     
 ErrorHandler:
@@ -85,8 +113,10 @@ ErrorHandler:
     HandleError "BasicFixes"
     With Application
         .ScreenUpdating = True
+        .EnableEvents = True
         .StatusBar = False
     End With
+    Set doc = Nothing
 End Sub
 
 '================================================================================
@@ -140,7 +170,7 @@ Private Sub RemoveLeadingBlankLines(doc As Document)
     
     ' Loop through and remove blank paragraphs at the beginning
     Set firstPara = doc.Paragraphs(1)
-    Do While Len(Trim(firstPara.Range.text)) = 0 ' Check if the paragraph is blank
+    Do While Len(Trim(firstPara.Range.Text)) = 0 ' Check if the paragraph is blank
         firstPara.Range.Delete ' Delete the blank paragraph
         If doc.Paragraphs.Count = 0 Then Exit Do ' Exit if no more paragraphs exist
         Set firstPara = doc.Paragraphs(1) ' Update the first paragraph
@@ -204,6 +234,13 @@ End Sub
 Private Sub ApplyStandardFormatting(doc As Document)
     On Error GoTo ErrorHandler ' Enable error handling
     
+    ' Verifica se o documento está protegido
+    If doc.ProtectionType <> wdNoProtection Then
+        MsgBox "O documento está protegido. Por favor, desproteja-o antes de continuar.", _
+               vbExclamation, "Documento Protegido"
+        Exit Sub
+    End If
+
     ' Set page layout and margins
     With doc.PageSetup
         .TopMargin = CentimetersToPoints(TOP_MARGIN_CM)
@@ -435,6 +472,40 @@ ErrorHandler:
 End Sub
 
 '================================================================================
+' ApplySpellingAndGrammarCorrections
+' Purpose: Automatically applies all spelling and grammar corrections suggested
+' by Word's native proofing tools without opening dialog boxes.
+'================================================================================
+Private Sub ApplySpellingAndGrammarCorrections(doc As Document)
+    On Error GoTo ErrorHandler ' Enable error handling
+
+    Dim proofError As ProofreadingError
+    Dim correctedText As String
+
+    ' Loop through all spelling errors and correct them
+    For Each proofError In doc.SpellingErrors
+        If proofError.Suggestions.Count > 0 Then
+            correctedText = proofError.Suggestions(1).Name ' Use the first suggestion
+            proofError.Range.Text = correctedText ' Replace the error with the suggestion
+        End If
+    Next proofError
+
+    ' Loop through all grammar errors and correct them
+    For Each proofError In doc.GrammaticalErrors
+        If proofError.Suggestions.Count > 0 Then
+            correctedText = proofError.Suggestions(1).Name ' Use the first suggestion
+            proofError.Range.Text = correctedText ' Replace the error with the suggestion
+        End If
+    Next proofError
+
+    Exit Sub ' Exit the function
+
+ErrorHandler:
+    ' Handle errors
+    HandleError "ApplySpellingAndGrammarCorrections"
+End Sub
+
+'================================================================================
 ' HELPER FUNCTIONS
 '================================================================================
 
@@ -453,10 +524,18 @@ End Function
 '================================================================================
 Private Sub HandleError(procedureName As String)
     Dim errMsg As String ' Variable to hold the error message
-    errMsg = "Error in " & procedureName & ":" & vbCrLf & _
-              "Error #" & Err.Number & vbCrLf & _
-              Err.description
-    MsgBox errMsg, vbCritical, "Formatting Error" ' Display the error message
-    Debug.Print errMsg ' Log the error message to the debug console
+    
+    ' Build the error message
+    errMsg = "Erro na sub-rotina: " & procedureName & vbCrLf & _
+             "Erro #" & Err.Number & ": " & Err.Description
+    
+    ' Display the error message to the user
+    MsgBox errMsg, vbCritical, "Erro de Formatação"
+    
+    ' Log the error message to the debug console
+    Debug.Print errMsg
+    
+    ' Clear the error
+    Err.Clear
 End Sub
 
