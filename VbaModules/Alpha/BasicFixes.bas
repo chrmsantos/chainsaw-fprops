@@ -51,6 +51,9 @@ Public Sub BasicFixes()
     Dim doc As Document ' Variable to hold the active document
     Set doc = ActiveDocument
     
+    ' Enable Word's native track changes feature
+    doc.TrackRevisions = True ' Activate track changes
+    
     ' Optimize performance by disabling screen updates
     With Application
         .ScreenUpdating = False
@@ -220,41 +223,75 @@ Private Sub ApplyStandardFormatting(doc As Document)
         .Underline = wdUnderlineNone
     End With
 
+    ' Format the first line of the document
+    If doc.Paragraphs.Count > 0 Then
+        Dim firstPara As Paragraph
+        Set firstPara = doc.Paragraphs(1)
+        With firstPara.Range
+            .Font.AllCaps = True ' Convert text to uppercase
+        End With
+    End If
+
     ' Apply paragraph formatting to the main document content
     Dim para As Paragraph
     Dim paraIndex As Long: paraIndex = 1
     For Each para In doc.Paragraphs
-        With para.Range.ParagraphFormat
-            ' Apply standard formatting to all paragraphs except the third
-            If paraIndex <> 3 Then
-                .leftIndent = 0
-                .RightIndent = 0
-                .FirstLineIndent = CentimetersToPoints(2.5) ' First line indent
-                .alignment = wdAlignParagraphJustify ' Justified alignment
-            End If
-            
-            ' Apply specific formatting to the third paragraph
+        With para.Range
+            ' Check if the paragraph is the third one
             If paraIndex = 3 Then
-                .leftIndent = CentimetersToPoints(9) ' Left indent of 9 cm
-                .FirstLineIndent = 0 ' No first line indent
-                .alignment = wdAlignParagraphLeft ' Left alignment
+                With .ParagraphFormat
+                    .Alignment = wdAlignParagraphJustify ' Justify alignment
+                End With
             End If
             
-            .SpaceBefore = 0
-            .SpaceAfter = LINE_SPACING
-            .LineSpacingRule = wdLineSpaceSingle
+            ' Check if the paragraph contains only the word "justificativa"
+            If Trim(.Text) = "justificativa" Then
+                .Font.Bold = True ' Apply bold to the word
+                With .ParagraphFormat
+                    .Alignment = wdAlignParagraphCenter ' Center alignment
+                    .LeftIndent = 0 ' Remove left indent
+                    .RightIndent = 0 ' Remove right indent
+                    .FirstLineIndent = 0 ' Remove first line indent
+                End With
+            End If
+            
+            ' Check if the paragraph contains only the word "anexo" or "anexos"
+            If Trim(.Text) = "anexo" Or Trim(.Text) = "anexos" Then
+                .Font.Bold = True ' Apply bold to the word
+                With .ParagraphFormat
+                    .Alignment = wdAlignParagraphCenter ' Center alignment
+                    .LeftIndent = 0 ' Remove left indent
+                    .RightIndent = 0 ' Remove right indent
+                    .FirstLineIndent = 0 ' Remove first line indent
+                End With
+            End If
+            
+            ' Apply paragraph formatting
+            With .ParagraphFormat
+                ' Apply standard formatting to all paragraphs except the third
+                If paraIndex <> 3 Then
+                    .LeftIndent = 0
+                    .RightIndent = 0
+                    .FirstLineIndent = CentimetersToPoints(2.5) ' First line indent
+                    .Alignment = wdAlignParagraphJustify ' Justified alignment
+                End If
+                
+                .SpaceBefore = 0
+                .SpaceAfter = LINE_SPACING
+                .LineSpacingRule = wdLineSpaceSingle
+            End With
         End With
         
         paraIndex = paraIndex + 1 ' Increment the paragraph index
     Next para
 
     ' Apply font formatting to headers and footers
-    Dim sec As section
+    Dim sec As Section
     Dim hdrFtr As HeaderFooter
     For Each sec In doc.Sections
         ' Format headers
         For Each hdrFtr In sec.Headers
-            If Len(Trim(hdrFtr.Range.text)) > 0 Then
+            If Len(Trim(hdrFtr.Range.Text)) > 0 Then
                 With hdrFtr.Range.Font
                     .Name = STANDARD_FONT
                     .Size = STANDARD_FONT_SIZE
@@ -267,7 +304,7 @@ Private Sub ApplyStandardFormatting(doc As Document)
         
         ' Format footers
         For Each hdrFtr In sec.Footers
-            If Len(Trim(hdrFtr.Range.text)) > 0 Then
+            If Len(Trim(hdrFtr.Range.Text)) > 0 Then
                 With hdrFtr.Range.Font
                     .Name = STANDARD_FONT
                     .Size = STANDARD_FONT_SIZE
