@@ -31,7 +31,7 @@ Private Const HEADER_DISTANCE_CM As Double = 0.7 ' Distance from header to conte
 Private Const FOOTER_DISTANCE_CM As Double = 0.7 ' Distance from footer to content in cm
 
 ' Header image constants
-Private Const HEADER_IMAGE_RELATIVE_PATH As String = "\Documents\RevisorDeProposituras\Configurations\DefaultHeader.png" ' Relative path to the header image
+Private Const HEADER_IMAGE_RELATIVE_PATH As String = "\RevisorDeProposituras\Configurations\DefaultHeader.png" ' Relative path to the header image
 Private Const HEADER_IMAGE_MAX_WIDTH_CM As Single = 17 ' Maximum width of the header image in cm
 Private Const HEADER_IMAGE_TOP_MARGIN_CM As Single = 0.27 ' Top margin for the header image in cm
 Private Const HEADER_IMAGE_HEIGHT_RATIO As Single = 0.24 ' Height-to-width ratio for the header image
