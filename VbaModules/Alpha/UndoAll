@@ -21,9 +21,8 @@ Sub UndoAllChanges()
         Exit Sub
     End If
 
-    ' Desativa atualizações e eventos para melhorar o desempenho
+    ' Desativa atualizações para melhorar o desempenho
     Application.ScreenUpdating = False
-    Application.EnableEvents = False
 
     ' Desfaz todas as alterações realizadas no documento
     Dim undoCount As Long: undoCount = 0
@@ -36,7 +35,6 @@ Sub UndoAllChanges()
 
     ' Restaura configurações
     Application.ScreenUpdating = True
-    Application.EnableEvents = True
 
     ' Mensagem de conclusão
     MsgBox "Todas as alterações realizadas desde a abertura do arquivo ou do último salvamento foram desfeitas com sucesso.", _
@@ -46,6 +44,5 @@ Sub UndoAllChanges()
 ErrorHandler:
     ' Restaura configurações em caso de erro
     Application.ScreenUpdating = True
-    Application.EnableEvents = True
     MsgBox "Erro " & Err.Number & ": " & Err.Description, vbCritical, "Erro ao Desfazer Alterações"
 End Sub

@@ -93,6 +93,7 @@ Public Sub BasicFixes()
     ApplyStandardFormatting doc ' Apply standard formatting
     RemoveAllWatermarks doc ' Remove watermarks
     InsertStandardHeaderImage doc ' Insert standard header image
+    EnsureBlankLineBelowTextParagraphs doc ' Ensure blank line below text paragraphs
     
     ' Restore application state
     With Application
@@ -113,7 +114,6 @@ ErrorHandler:
     HandleError "BasicFixes"
     With Application
         .ScreenUpdating = True
-        .EnableEvents = True
         .StatusBar = False
     End With
     Set doc = Nothing
@@ -260,67 +260,39 @@ Private Sub ApplyStandardFormatting(doc As Document)
         .Underline = wdUnderlineNone
     End With
 
-    ' Format the first line of the document
+    ' Apply paragraph formatting to the entire document
+    With doc.Content.ParagraphFormat
+        .SpaceAfter = 12 ' Add 12 points of space after each paragraph
+        .LineSpacingRule = wdLineSpaceMultiple ' Set line spacing rule to multiple
+        .LineSpacing = 1.15 * 12 ' Set line spacing to 1.15
+        .Alignment = wdAlignParagraphJustify ' Justify alignment
+        .FirstLineIndent = CentimetersToPoints(2.5) ' Set first line indent to 2.5 cm
+    End With
+
+    ' Format the first paragraph of the document
     If doc.Paragraphs.Count > 0 Then
         Dim firstPara As Paragraph
         Set firstPara = doc.Paragraphs(1)
         With firstPara.Range
+            .Font.Bold = True ' Apply bold
             .Font.AllCaps = True ' Convert text to uppercase
+            .ParagraphFormat.Alignment = wdAlignParagraphCenter ' Center alignment
+            .ParagraphFormat.LeftIndent = 0 ' Remove left indent
+            .ParagraphFormat.RightIndent = 0 ' Remove right indent
+            .ParagraphFormat.FirstLineIndent = 0 ' Remove first line indent
         End With
     End If
 
-    ' Apply paragraph formatting to the main document content
-    Dim para As Paragraph
-    Dim paraIndex As Long: paraIndex = 1
-    For Each para In doc.Paragraphs
-        With para.Range
-            ' Check if the paragraph is the third one
-            If paraIndex = 3 Then
-                With .ParagraphFormat
-                    .Alignment = wdAlignParagraphJustify ' Justify alignment
-                End With
-            End If
-            
-            ' Check if the paragraph contains only the word "justificativa"
-            If Trim(.Text) = "justificativa" Then
-                .Font.Bold = True ' Apply bold to the word
-                With .ParagraphFormat
-                    .Alignment = wdAlignParagraphCenter ' Center alignment
-                    .LeftIndent = 0 ' Remove left indent
-                    .RightIndent = 0 ' Remove right indent
-                    .FirstLineIndent = 0 ' Remove first line indent
-                End With
-            End If
-            
-            ' Check if the paragraph contains only the word "anexo" or "anexos"
-            If Trim(.Text) = "anexo" Or Trim(.Text) = "anexos" Then
-                .Font.Bold = True ' Apply bold to the word
-                With .ParagraphFormat
-                    .Alignment = wdAlignParagraphCenter ' Center alignment
-                    .LeftIndent = 0 ' Remove left indent
-                    .RightIndent = 0 ' Remove right indent
-                    .FirstLineIndent = 0 ' Remove first line indent
-                End With
-            End If
-            
-            ' Apply paragraph formatting
-            With .ParagraphFormat
-                ' Apply standard formatting to all paragraphs except the third
-                If paraIndex <> 3 Then
-                    .LeftIndent = 0
-                    .RightIndent = 0
-                    .FirstLineIndent = CentimetersToPoints(2.5) ' First line indent
-                    .Alignment = wdAlignParagraphJustify ' Justified alignment
-                End If
-                
-                .SpaceBefore = 0
-                .SpaceAfter = LINE_SPACING
-                .LineSpacingRule = wdLineSpaceSingle
-            End With
+    ' Format the second paragraph of the document
+    If doc.Paragraphs.Count > 1 Then
+        Dim secondPara As Paragraph
+        Set secondPara = doc.Paragraphs(2)
+        With secondPara.Range.ParagraphFormat
+            .LeftIndent = 0 ' Remove any left indent
+            .FirstLineIndent = CentimetersToPoints(9) ' Set first line indent to 9 cm
+            .RightIndent = 0 ' Ensure no right indent
         End With
-        
-        paraIndex = paraIndex + 1 ' Increment the paragraph index
-    Next para
+    End If
 
     ' Apply font formatting to headers and footers
     Dim sec As Section
@@ -479,30 +451,87 @@ End Sub
 Private Sub ApplySpellingAndGrammarCorrections(doc As Document)
     On Error GoTo ErrorHandler ' Enable error handling
 
-    Dim proofError As ProofreadingError
+    Dim errorRange As Range
+    Dim suggestions As SpellingSuggestions
     Dim correctedText As String
 
     ' Loop through all spelling errors and correct them
-    For Each proofError In doc.SpellingErrors
-        If proofError.Suggestions.Count > 0 Then
-            correctedText = proofError.Suggestions(1).Name ' Use the first suggestion
-            proofError.Range.Text = correctedText ' Replace the error with the suggestion
+    For Each errorRange In doc.SpellingErrors
+        Set suggestions = Application.GetSpellingSuggestions(errorRange.Text) ' Get suggestions
+        If suggestions.Count > 0 Then
+            correctedText = suggestions(1).Name ' Use the first suggestion
+            errorRange.Text = correctedText ' Replace the error with the suggestion
         End If
-    Next proofError
+    Next errorRange
 
     ' Loop through all grammar errors and correct them
-    For Each proofError In doc.GrammaticalErrors
-        If proofError.Suggestions.Count > 0 Then
-            correctedText = proofError.Suggestions(1).Name ' Use the first suggestion
-            proofError.Range.Text = correctedText ' Replace the error with the suggestion
-        End If
-    Next proofError
+    For Each errorRange In doc.GrammaticalErrors
+        ' Grammar errors do not have a direct suggestion API, so handle them differently if needed
+        ' For now, we skip grammar corrections
+    Next errorRange
 
     Exit Sub ' Exit the function
 
 ErrorHandler:
     ' Handle errors
     HandleError "ApplySpellingAndGrammarCorrections"
+End Sub
+
+'================================================================================
+' EnsureBlankLineBelowTextParagraphs
+' Purpose: Ensures that every paragraph with text has a blank line below it.
+'================================================================================
+Private Sub EnsureBlankLineBelowTextParagraphs(doc As Document)
+    On Error GoTo ErrorHandler ' Enable error handling
+
+    Dim para As Paragraph
+    Dim paraRange As Range
+
+    ' Loop through all paragraphs in the document
+    For Each para In doc.Paragraphs
+        Set paraRange = para.Range
+
+        ' Check if the paragraph contains text (ignoring empty or whitespace-only paragraphs)
+        If Len(Trim(paraRange.Text)) > 0 Then
+            ' Check if the next character is not a paragraph mark (indicating no blank line)
+            If Not paraRange.Characters.Last.Text = vbCr Then
+                paraRange.InsertAfter vbCr ' Insert a blank line
+            End If
+        End If
+    Next para
+
+    Exit Sub ' Exit the function
+
+ErrorHandler:
+    ' Handle errors
+    HandleError "EnsureBlankLineBelowTextParagraphs"
+End Sub
+
+'================================================================================
+' RemoveBlankLines
+' Purpose: Removes all blank lines (empty paragraphs) from the document.
+'================================================================================
+Private Sub RemoveBlankLines(doc As Document)
+    On Error GoTo ErrorHandler ' Enable error handling
+
+    Dim para As Paragraph
+    Dim paraRange As Range
+
+    ' Loop through all paragraphs in the document
+    For Each para In doc.Paragraphs
+        Set paraRange = para.Range
+
+        ' Check if the paragraph is empty or contains only whitespace
+        If Len(Trim(paraRange.Text)) = 0 Then
+            paraRange.Delete ' Delete the blank paragraph
+        End If
+    Next para
+
+    Exit Sub ' Exit the function
+
+ErrorHandler:
+    ' Handle errors
+    HandleError "RemoveBlankLines"
 End Sub
 
 '================================================================================
