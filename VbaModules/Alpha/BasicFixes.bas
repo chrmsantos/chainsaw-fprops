@@ -6,7 +6,7 @@ Option Explicit
 ' Description: Standardizes document formatting to formal specifications
 ' Compatibility: Microsoft Word 2010 and later versions
 ' Author: [Your Name]
-' Version: 1.4
+' Version: 1.5
 ' Last Modified: [Date]
 '================================================================================
 
@@ -64,15 +64,6 @@ Public Sub BasicFixes()
         Exit Sub
     End If
     
-    ' Enable Word's native track changes feature
-    On Error Resume Next
-    doc.TrackRevisions = True ' Activate track changes
-    If Err.Number <> 0 Then
-        MsgBox "O recurso 'Rastrear Alterações' não é suportado nesta versão do Word.", vbExclamation, "Recurso Não Suportado"
-        Err.Clear
-    End If
-    On Error GoTo ErrorHandler
-    
     ' Optimize performance by disabling screen updates
     With Application
         .ScreenUpdating = False
@@ -81,15 +72,9 @@ Public Sub BasicFixes()
     
     ' Execute formatting steps
     ResetBasicFormatting doc ' Reset basic formatting
-    
-    ' Apply justified alignment to the entire document
-    With doc.Content.ParagraphFormat
-        .Alignment = wdAlignParagraphJustify ' Justify alignment
-    End With
-    
+    RemoveBlankLines doc ' Remove all blank lines
     RemoveLeadingBlankLines doc ' Remove leading blank lines
     CleanDocumentSpacing doc ' Clean up document spacing
-    ApplySpellingAndGrammarCorrections doc ' Apply spelling and grammar corrections
     ApplyStandardFormatting doc ' Apply standard formatting
     RemoveAllWatermarks doc ' Remove watermarks
     InsertStandardHeaderImage doc ' Insert standard header image
