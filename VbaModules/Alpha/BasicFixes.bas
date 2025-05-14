@@ -24,7 +24,7 @@ Private Const LINE_SPACING As Long = 12 ' Line spacing in points
 
 ' Margin constants in centimeters
 Private Const TOP_MARGIN_CM As Double = 4.5 ' Top margin in cm
-Private Const BOTTOM_MARGIN_CM As Double = 3# ' Bottom margin in cm
+Private Const BOTTOM_MARGIN_CM As Double = 2# ' Bottom margin in cm
 Private Const LEFT_MARGIN_CM As Double = 3# ' Left margin in cm
 Private Const RIGHT_MARGIN_CM As Double = 3# ' Right margin in cm
 Private Const HEADER_DISTANCE_CM As Double = 0.7 ' Distance from header to content in cm
@@ -70,25 +70,35 @@ Public Sub BasicFixes()
         .StatusBar = "Formatting document..."
     End With
     
-    ' Execute formatting steps
+    ' Formatting steps
+    ' Sequential order matters here
+
+    ' Decontructive formatting steps
     ResetBasicFormatting doc ' Reset basic formatting
-    RemoveBlankLines doc ' Remove all blank lines
+    ClearDocumentMetadata doc ' Clear document metadata
+    RemoveAllWatermarks doc ' Remove watermarks
+    RemoveBlankLines doc ' Remove blank lines
+    EnsureBlankLineBelowTextParagraphs doc ' Ensure blank line below text paragraphs
     RemoveLeadingBlankLines doc ' Remove leading blank lines
     CleanDocumentSpacing doc ' Clean up document spacing
+    RemoveExtraPageBreaks doc ' Remove extra page breaks
+
+    ' Constructive formatting steps
     ApplyStandardFormatting doc ' Apply standard formatting
-    RemoveAllWatermarks doc ' Remove watermarks
     InsertStandardHeaderImage doc ' Insert standard header image
-    EnsureBlankLineBelowTextParagraphs doc ' Ensure blank line below text paragraphs
-    
+    FixConsiderandoEnding doc ' Fix "Considerando" ending
+    FormatSpecificLines doc ' Format specific lines
+
+    ' Basic formal text replacements
+    ApplyStandardReplacements doc ' Apply standard text replacements
+
     ' Restore application state
     With Application
         .ScreenUpdating = True
         .StatusBar = False
     End With
     
-    ' Notify the user of completion
-    MsgBox "Document formatting completed successfully.", _
-           vbInformation, "Formatting Complete"
+    ShowCompletionMessage doc ' Show completion message
     
     ' Limpeza de variáveis
     Set doc = Nothing
@@ -429,40 +439,6 @@ ErrorHandler:
 End Sub
 
 '================================================================================
-' ApplySpellingAndGrammarCorrections
-' Purpose: Automatically applies all spelling and grammar corrections suggested
-' by Word's native proofing tools without opening dialog boxes.
-'================================================================================
-Private Sub ApplySpellingAndGrammarCorrections(doc As Document)
-    On Error GoTo ErrorHandler ' Enable error handling
-
-    Dim errorRange As Range
-    Dim suggestions As SpellingSuggestions
-    Dim correctedText As String
-
-    ' Loop through all spelling errors and correct them
-    For Each errorRange In doc.SpellingErrors
-        Set suggestions = Application.GetSpellingSuggestions(errorRange.Text) ' Get suggestions
-        If suggestions.Count > 0 Then
-            correctedText = suggestions(1).Name ' Use the first suggestion
-            errorRange.Text = correctedText ' Replace the error with the suggestion
-        End If
-    Next errorRange
-
-    ' Loop through all grammar errors and correct them
-    For Each errorRange In doc.GrammaticalErrors
-        ' Grammar errors do not have a direct suggestion API, so handle them differently if needed
-        ' For now, we skip grammar corrections
-    Next errorRange
-
-    Exit Sub ' Exit the function
-
-ErrorHandler:
-    ' Handle errors
-    HandleError "ApplySpellingAndGrammarCorrections"
-End Sub
-
-'================================================================================
 ' EnsureBlankLineBelowTextParagraphs
 ' Purpose: Ensures that every paragraph with text has a blank line below it.
 '================================================================================
@@ -553,3 +529,170 @@ Private Sub HandleError(procedureName As String)
     Err.Clear
 End Sub
 
+'--------------------------------------------------------------------------------
+' SUBROTINA: ClearDocumentMetadata
+' Remove os metadados do documento ativo.
+'--------------------------------------------------------------------------------
+Private Sub ClearDocumentMetadata(doc As Document)
+    On Error Resume Next
+
+    Dim prop As DocumentProperty
+    doc.BuiltInDocumentProperties("Title") = ""
+    doc.BuiltInDocumentProperties("Subject") = ""
+    doc.BuiltInDocumentProperties("Keywords") = ""
+    doc.BuiltInDocumentProperties("Comments") = ""
+    doc.BuiltInDocumentProperties("Author") = "Anônimo"
+    doc.BuiltInDocumentProperties("Last Author") = "Anônimo"
+    doc.BuiltInDocumentProperties("Manager") = ""
+    doc.BuiltInDocumentProperties("Company") = ""
+
+    For Each prop In doc.CustomDocumentProperties
+        prop.Delete
+    Next prop
+End Sub
+
+'--------------------------------------------------------------------------------
+' SUBROTINA: FixConsiderandoEnding
+' Finalidade: Garante que parágrafos iniciados com "Considerando" terminem com ponto e vírgula (;).
+'--------------------------------------------------------------------------------
+Private Sub FixConsiderandoEnding(doc As Document)
+    On Error Resume Next
+
+    ' Verifica se há parágrafos no documento
+    If doc.Paragraphs.Count = 0 Then Exit Sub
+
+    Dim para As Paragraph
+    Dim paraText As String
+
+    ' Itera por todos os parágrafos do documento
+    For Each para In doc.Paragraphs
+        paraText = Trim(para.Range.Text) ' Obtém o texto do parágrafo sem espaços extras
+
+        ' Verifica se o parágrafo começa com "Considerando" (case-insensitive)
+        If LCase(Left(paraText, 11)) = "considerando" Then
+            ' Substitui o ponto final no final do parágrafo por ponto e vírgula
+            If Right(paraText, 1) = "." Then
+                para.Range.Text = Left(paraText, Len(paraText) - 1) & ";"
+            End If
+        End If
+    Next para
+End Sub
+
+--------------------------------------------------------------------------------
+' SUBROTINA: ApplyStandardReplacements
+' Realiza substituições de texto no documento com base em padrões predefinidos.
+'--------------------------------------------------------------------------------
+Private Sub ApplyStandardReplacements(doc As Document)
+    On Error Resume Next
+
+    Dim replacements As Variant
+    replacements = Array( _
+        Array("[!.\?\n] Rua", "rua", True), _
+        Array("[!.\?\n] Bairro", "bairro", True), _
+        Array("[Dd][´`][Oo]este", "d'Oeste", True), _
+        Array("([0-9]@ de [A-Za-z]@ de )([0-9]{4})", Format(Date, "dd 'de' mmmm 'de' yyyy"), True))
+
+    Dim i As Integer
+    For i = LBound(replacements) To UBound(replacements)
+        With doc.Content.Find
+            .Text = replacements(i)(0)
+            .Replacement.Text = replacements(i)(1)
+            .MatchWildcards = replacements(i)(2)
+            .Execute Replace:=wdReplaceAll
+        End With
+    Next i
+End Sub
+
+'--------------------------------------------------------------------------------
+' SUBROTINA: FormatSpecificLines
+' Formata a primeira linha, a linha com "justificativa(s)" e a linha com "anexo(s)".
+'--------------------------------------------------------------------------------
+Private Sub FormatSpecificLines(doc As Document)
+    On Error GoTo ErrorHandler
+
+    Dim para As Paragraph
+    Dim paraText As String
+    Dim paraIndex As Integer
+    Dim maxParagraphs As Integer
+
+    ' Define a quantidade máxima de parágrafos a serem processados (para evitar crashes)
+    maxParagraphs = 1000 ' Ajuste conforme necessário
+
+    ' Itera por todos os parágrafos do documento
+    paraIndex = 1
+    For Each para In doc.Paragraphs
+        If paraIndex > maxParagraphs Then Exit For ' Limita o número de parágrafos processados
+
+        paraText = Trim(para.Range.Text)
+
+        ' Formata a primeira linha do texto
+        If paraIndex = 1 Then
+            With para.Range
+                .Font.Bold = True
+                .ParagraphFormat.Alignment = wdAlignParagraphCenter
+                .ParagraphFormat.LeftIndent = 0
+            End With
+        End If
+
+        ' Formata a linha com "justificativa" ou "justificativas"
+        If LCase(paraText) = "justificativa" Or LCase(paraText) = "justificativas" Then
+            With para.Range
+                .Font.Bold = True
+                .ParagraphFormat.Alignment = wdAlignParagraphCenter
+                .ParagraphFormat.LeftIndent = 0
+            End With
+        End If
+
+        ' Formata a linha com "anexo" ou "anexos"
+        If InStr(LCase(paraText), "anexo") > 0 Then
+            With para.Range
+                .Font.Bold = True
+                .ParagraphFormat.Alignment = wdAlignParagraphLeft
+                .ParagraphFormat.LeftIndent = 0
+            End With
+        End If
+
+        paraIndex = paraIndex + 1
+    Next para
+
+    Exit Sub
+
+ErrorHandler:
+    MsgBox "Erro ao formatar linhas específicas: " & Err.Description, vbCritical, "Erro"
+End Sub
+
+'--------------------------------------------------------------------------------
+' SUBROTINA: RemoveExtraPageBreaks
+' Finalidade: Remove quebras de página extras no documento.
+'--------------------------------------------------------------------------------
+Private Function RemoveExtraPageBreaks(doc As Document) As Integer
+    On Error Resume Next
+
+    Dim editCount As Integer: editCount = 0
+
+    ' Remove quebras de página extras
+    With doc.Content.Find
+        .Text = "^m^m" ' Duas quebras de página consecutivas
+        .Replacement.Text = "^m" ' Uma quebra de página
+        .Forward = True
+        .Wrap = wdFindContinue
+        .MatchWildcards = False
+        Do While .Execute(Replace:=wdReplaceAll)
+            editCount = editCount + 1
+        Loop
+    End With
+
+    RemoveExtraPageBreaks = editCount
+End Function
+
+'--------------------------------------------------------------------------------
+' SUBROTINA: ShowCompletionMessage
+' Exibe uma mensagem de conclusão com informações sobre o backup e o processamento.
+'--------------------------------------------------------------------------------
+Private Sub ShowCompletionMessage(backupPath As String, docPath As String, editCount As Integer, executionTime As Double)
+    MsgBox "Retificação concluída com sucesso!" & vbCrLf & vbCrLf & _
+           "Backup criado em: " & backupPath & vbCrLf & _
+           "Número de edições realizadas: " & editCount & vbCrLf & _
+           "Tempo de execução: " & Format(executionTime, "0.00") & " segundos", _
+           vbInformation, "Retificação Completa"
+End Sub
