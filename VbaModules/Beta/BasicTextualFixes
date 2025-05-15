@@ -1,0 +1,59 @@
+' Basic formal text replacements
+    ApplyStandardReplacements doc ' Apply standard text replacements
+    FixConsiderandoEnding doc ' Fix "Considerando" ending
+
+    '--------------------------------------------------------------------------------
+' SUBROTINA: FixConsiderandoEnding
+' Finalidade: Garante que parágrafos iniciados com "Considerando" terminem com ponto e vírgula (;).
+'--------------------------------------------------------------------------------
+Private Sub FixConsiderandoEnding(doc As Document)
+    On Error Resume Next
+
+    If doc.Paragraphs.Count = 0 Then Exit Sub
+
+    Dim para As Paragraph
+    Dim paraText As String
+
+    For Each para In doc.Paragraphs
+        paraText = Trim(Replace(para.Range.Text, vbCr, "")) ' Remove marcas de parágrafo
+
+        If LCase(Left(paraText, 11)) = "considerando" Then
+            ' Se termina com ponto, troca por ponto e vírgula
+            If Right(paraText, 1) = "." Then
+                paraText = Left(paraText, Len(paraText) - 1) & ";"
+            ' Se não termina com ponto e vírgula, adiciona
+            ElseIf Right(paraText, 1) <> ";" And Len(paraText) > 0 Then
+                paraText = paraText & ";"
+            End If
+            ' Atualiza o texto do parágrafo sem perder a marca de parágrafo
+            para.Range.Text = paraText & vbCr
+        End If
+    Next para
+End Sub
+
+--------------------------------------------------------------------------------
+' SUBROTINA: ApplyStandardReplacements
+' Realiza substituições de texto no documento com base em padrões predefinidos.
+'--------------------------------------------------------------------------------
+Private Sub ApplyStandardReplacements(doc As Document)
+    On Error Resume Next
+
+    Dim replacements As Variant
+    replacements = Array( _
+        Array("[!.\?\n] Rua", "rua", True), _
+        Array("[!.\?\n] Bairro", "bairro", True), _
+        Array("[Dd][´`][Oo]este", "d'Oeste", True), _
+        Array("([0-9]@ de [A-Za-z]@ de )([0-9]{4})", Format(Date, "dd 'de' mmmm 'de' yyyy"), True))
+
+    Dim i As Integer
+    For i = LBound(replacements) To UBound(replacements)
+        With doc.Content.Find
+            .ClearFormatting
+            .Replacement.ClearFormatting
+            .Text = replacements(i)(0)
+            .Replacement.Text = replacements(i)(1)
+            .MatchWildcards = replacements(i)(2)
+            .Execute Replace:=wdReplaceAll
+        End With
+    Next i
+End Sub

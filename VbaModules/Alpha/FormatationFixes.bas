@@ -86,11 +86,7 @@ Public Sub BasicFixes()
     ' Constructive formatting steps
     ApplyStandardFormatting doc ' Apply standard formatting
     InsertStandardHeaderImage doc ' Insert standard header image
-    FixConsiderandoEnding doc ' Fix "Considerando" ending
     FormatSpecificLines doc ' Format specific lines
-
-    ' Basic formal text replacements
-    ApplyStandardReplacements doc ' Apply standard text replacements
 
     ' Restore application state
     With Application
@@ -98,7 +94,13 @@ Public Sub BasicFixes()
         .StatusBar = False
     End With
     
-    ShowCompletionMessage doc ' Show completion message
+    ' Exemplo de chamada correta:
+    Dim backupPath As String: backupPath = ""
+    Dim docPath As String: docPath = doc.FullName
+    Dim editCount As Integer: editCount = 0
+    Dim executionTime As Double: executionTime = 0
+
+    ShowCompletionMessage backupPath, docPath, editCount, executionTime
     
     ' Limpeza de variáveis
     Set doc = Nothing
@@ -443,28 +445,31 @@ End Sub
 ' Purpose: Ensures that every paragraph with text has a blank line below it.
 '================================================================================
 Private Sub EnsureBlankLineBelowTextParagraphs(doc As Document)
-    On Error GoTo ErrorHandler ' Enable error handling
+    On Error GoTo ErrorHandler
 
-    Dim para As Paragraph
-    Dim paraRange As Range
-
-    ' Loop through all paragraphs in the document
-    For Each para In doc.Paragraphs
-        Set paraRange = para.Range
-
-        ' Check if the paragraph contains text (ignoring empty or whitespace-only paragraphs)
-        If Len(Trim(paraRange.Text)) > 0 Then
-            ' Check if the next character is not a paragraph mark (indicating no blank line)
-            If Not paraRange.Characters.Last.Text = vbCr Then
-                paraRange.InsertAfter vbCr ' Insert a blank line
+    Dim i As Long
+    For i = doc.Paragraphs.Count To 1 Step -1
+        Dim para As Paragraph
+        Set para = doc.Paragraphs(i)
+        Dim paraText As String
+        paraText = Trim(para.Range.Text)
+        If Len(paraText) > 0 Then
+            If i = doc.Paragraphs.Count Then
+                ' Último parágrafo: não faz nada
+            Else
+                Dim nextParaText As String
+                nextParaText = Trim(doc.Paragraphs(i + 1).Range.Text)
+                If Len(nextParaText) > 0 Then
+                    ' Insere linha em branco somente se o próximo não for em branco
+                    doc.Paragraphs(i).Range.InsertAfter vbCr
+                End If
             End If
         End If
-    Next para
+    Next i
 
-    Exit Sub ' Exit the function
+    Exit Sub
 
 ErrorHandler:
-    ' Handle errors
     HandleError "EnsureBlankLineBelowTextParagraphs"
 End Sub
 
@@ -473,25 +478,18 @@ End Sub
 ' Purpose: Removes all blank lines (empty paragraphs) from the document.
 '================================================================================
 Private Sub RemoveBlankLines(doc As Document)
-    On Error GoTo ErrorHandler ' Enable error handling
+    On Error GoTo ErrorHandler
 
-    Dim para As Paragraph
-    Dim paraRange As Range
-
-    ' Loop through all paragraphs in the document
-    For Each para In doc.Paragraphs
-        Set paraRange = para.Range
-
-        ' Check if the paragraph is empty or contains only whitespace
-        If Len(Trim(paraRange.Text)) = 0 Then
-            paraRange.Delete ' Delete the blank paragraph
+    Dim i As Long
+    For i = doc.Paragraphs.Count To 1 Step -1
+        If Len(Trim(doc.Paragraphs(i).Range.Text)) = 0 Then
+            doc.Paragraphs(i).Range.Delete
         End If
-    Next para
+    Next i
 
-    Exit Sub ' Exit the function
+    Exit Sub
 
 ErrorHandler:
-    ' Handle errors
     HandleError "RemoveBlankLines"
 End Sub
 
@@ -552,58 +550,6 @@ Private Sub ClearDocumentMetadata(doc As Document)
 End Sub
 
 '--------------------------------------------------------------------------------
-' SUBROTINA: FixConsiderandoEnding
-' Finalidade: Garante que parágrafos iniciados com "Considerando" terminem com ponto e vírgula (;).
-'--------------------------------------------------------------------------------
-Private Sub FixConsiderandoEnding(doc As Document)
-    On Error Resume Next
-
-    ' Verifica se há parágrafos no documento
-    If doc.Paragraphs.Count = 0 Then Exit Sub
-
-    Dim para As Paragraph
-    Dim paraText As String
-
-    ' Itera por todos os parágrafos do documento
-    For Each para In doc.Paragraphs
-        paraText = Trim(para.Range.Text) ' Obtém o texto do parágrafo sem espaços extras
-
-        ' Verifica se o parágrafo começa com "Considerando" (case-insensitive)
-        If LCase(Left(paraText, 11)) = "considerando" Then
-            ' Substitui o ponto final no final do parágrafo por ponto e vírgula
-            If Right(paraText, 1) = "." Then
-                para.Range.Text = Left(paraText, Len(paraText) - 1) & ";"
-            End If
-        End If
-    Next para
-End Sub
-
---------------------------------------------------------------------------------
-' SUBROTINA: ApplyStandardReplacements
-' Realiza substituições de texto no documento com base em padrões predefinidos.
-'--------------------------------------------------------------------------------
-Private Sub ApplyStandardReplacements(doc As Document)
-    On Error Resume Next
-
-    Dim replacements As Variant
-    replacements = Array( _
-        Array("[!.\?\n] Rua", "rua", True), _
-        Array("[!.\?\n] Bairro", "bairro", True), _
-        Array("[Dd][´`][Oo]este", "d'Oeste", True), _
-        Array("([0-9]@ de [A-Za-z]@ de )([0-9]{4})", Format(Date, "dd 'de' mmmm 'de' yyyy"), True))
-
-    Dim i As Integer
-    For i = LBound(replacements) To UBound(replacements)
-        With doc.Content.Find
-            .Text = replacements(i)(0)
-            .Replacement.Text = replacements(i)(1)
-            .MatchWildcards = replacements(i)(2)
-            .Execute Replace:=wdReplaceAll
-        End With
-    Next i
-End Sub
-
-'--------------------------------------------------------------------------------
 ' SUBROTINA: FormatSpecificLines
 ' Formata a primeira linha, a linha com "justificativa(s)" e a linha com "anexo(s)".
 '--------------------------------------------------------------------------------
@@ -615,22 +561,23 @@ Private Sub FormatSpecificLines(doc As Document)
     Dim paraIndex As Integer
     Dim maxParagraphs As Integer
 
-    ' Define a quantidade máxima de parágrafos a serem processados (para evitar crashes)
-    maxParagraphs = 1000 ' Ajuste conforme necessário
+    maxParagraphs = 1000 ' Limite de segurança
 
-    ' Itera por todos os parágrafos do documento
     paraIndex = 1
     For Each para In doc.Paragraphs
-        If paraIndex > maxParagraphs Then Exit For ' Limita o número de parágrafos processados
+        If paraIndex > maxParagraphs Then Exit For
 
-        paraText = Trim(para.Range.Text)
+        paraText = Trim(Replace(para.Range.Text, vbCr, ""))
 
         ' Formata a primeira linha do texto
         If paraIndex = 1 Then
             With para.Range
                 .Font.Bold = True
+                .Font.AllCaps = True
                 .ParagraphFormat.Alignment = wdAlignParagraphCenter
                 .ParagraphFormat.LeftIndent = 0
+                .ParagraphFormat.RightIndent = 0
+                .ParagraphFormat.FirstLineIndent = 0
             End With
         End If
 
@@ -640,15 +587,19 @@ Private Sub FormatSpecificLines(doc As Document)
                 .Font.Bold = True
                 .ParagraphFormat.Alignment = wdAlignParagraphCenter
                 .ParagraphFormat.LeftIndent = 0
+                .ParagraphFormat.RightIndent = 0
+                .ParagraphFormat.FirstLineIndent = 0
             End With
         End If
 
-        ' Formata a linha com "anexo" ou "anexos"
-        If InStr(LCase(paraText), "anexo") > 0 Then
+        ' Formata a linha com "anexo" ou "anexos" (apenas se for a palavra isolada)
+        If LCase(paraText) = "anexo" Or LCase(paraText) = "anexos" Then
             With para.Range
                 .Font.Bold = True
-                .ParagraphFormat.Alignment = wdAlignParagraphLeft
+                .ParagraphFormat.Alignment = wdAlignParagraphCenter
                 .ParagraphFormat.LeftIndent = 0
+                .ParagraphFormat.RightIndent = 0
+                .ParagraphFormat.FirstLineIndent = 0
             End With
         End If
 

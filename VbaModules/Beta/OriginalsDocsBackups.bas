@@ -3,6 +3,7 @@ Option Explicit
 '--------------------------------------------------------------------------------
 ' FUNÇÃO: CreateBackup
 ' Cria um backup do documento ativo, garantindo que o diretório seja criado se não existir.
+' Retorna o caminho do backup criado ou "" em caso de erro.
 '--------------------------------------------------------------------------------
 Public Function CreateBackup(doc As Document) As String
     On Error GoTo ErrorHandler
@@ -19,7 +20,7 @@ Public Function CreateBackup(doc As Document) As String
     If Not CreateDirectoryIfNeeded(backupFolder) Then
         MsgBox "Não foi possível criar o diretório de backup: " & backupFolder & vbCrLf & _
                "A execução continuará sem o backup.", vbExclamation, "Aviso de Backup"
-        CreateBackup = "" ' Retorna vazio, mas permite continuar
+        CreateBackup = ""
         Exit Function
     End If
 
@@ -27,38 +28,40 @@ Public Function CreateBackup(doc As Document) As String
     backupPath = backupFolder & SanitizeFileName(docName)
 
     ' Salva o documento no caminho do backup
-    doc.SaveAs FileName:=backupPath, FileFormat:=wdFormatDocumentDefault ' Compatível com Word 2007 e posterior
+    On Error Resume Next
+    doc.SaveAs FileName:=backupPath, FileFormat:=wdFormatDocumentDefault
+    If Err.Number <> 0 Then
+        MsgBox "Erro ao salvar o backup: " & Err.Description, vbExclamation, "Aviso de Backup"
+        CreateBackup = ""
+        Err.Clear
+        Exit Function
+    End If
+    On Error GoTo 0
+
     CreateBackup = backupPath
     Exit Function
 
 ErrorHandler:
     MsgBox "Erro ao criar o backup: " & Err.Description & vbCrLf & _
            "A execução continuará sem o backup.", vbExclamation, "Aviso de Backup"
-    CreateBackup = "" ' Retorna vazio, mas permite continuar
+    CreateBackup = ""
 End Function
 
 '--------------------------------------------------------------------------------
 ' FUNÇÃO: CreateDirectoryIfNeeded
 ' Cria o diretório especificado, incluindo subdiretórios, se necessário.
+' Retorna True se o diretório existir/criado, False em caso de erro.
 '--------------------------------------------------------------------------------
 Public Function CreateDirectoryIfNeeded(folderPath As String) As Boolean
     On Error GoTo ErrorHandler
 
     Dim fso As Object
-    Dim parentFolder As String
     Set fso = CreateObject("Scripting.FileSystemObject")
 
-    ' Verifica se o diretório já existe
     If Not fso.FolderExists(folderPath) Then
-        ' Cria diretórios recursivamente
-        parentFolder = fso.GetParentFolderName(folderPath)
-        If parentFolder <> "" And Not fso.FolderExists(parentFolder) Then
-            CreateDirectoryIfNeeded parentFolder
-        End If
-        fso.CreateFolder(folderPath)
+        fso.CreateFolder folderPath
     End If
 
-    ' Verifica novamente se o diretório foi criado com sucesso
     CreateDirectoryIfNeeded = fso.FolderExists(folderPath)
     Exit Function
 
