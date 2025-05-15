@@ -72,7 +72,6 @@ Public Sub BasicFixes()
     
     ' Formatting steps
     ' Sequential order matters here
-
     ' Decontructive formatting steps
     ResetBasicFormatting doc ' Reset basic formatting
     ClearDocumentMetadata doc ' Clear document metadata
@@ -82,7 +81,6 @@ Public Sub BasicFixes()
     RemoveLeadingBlankLines doc ' Remove leading blank lines
     CleanDocumentSpacing doc ' Clean up document spacing
     RemoveExtraPageBreaks doc ' Remove extra page breaks
-
     ' Constructive formatting steps
     ApplyStandardFormatting doc ' Apply standard formatting
     InsertStandardHeaderImage doc ' Insert standard header image
