@@ -37,12 +37,12 @@ Private Const HEADER_IMAGE_TOP_MARGIN_CM As Single = 0.27 ' Top margin for the h
 Private Const HEADER_IMAGE_HEIGHT_RATIO As Single = 0.21 ' Height-to-width ratio for the header image
 
 '================================================================================
-' MAIN PROCEDURE: BasicFixes
+' MAIN PROCEDURE: FormatFixes
 '================================================================================
 ' Purpose: Orchestrates the document formatting process by calling various helper
 ' functions to apply standard formatting, clean up spacing, and insert headers.
 '================================================================================
-Public Sub BasicFixes()
+Public Sub FormatFixes()
     On Error GoTo ErrorHandler ' Enable error handling
     
     ' Verifica se a versão do Word é 2007 ou superior
@@ -106,7 +106,7 @@ Public Sub BasicFixes()
     
 ErrorHandler:
     ' Handle errors and restore application state
-    HandleError "BasicFixes"
+    HandleError "FormatFixes"
     With Application
         .ScreenUpdating = True
         .StatusBar = False
