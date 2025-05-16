@@ -58,3 +58,4 @@ Private Sub ApplyStandardReplacements(doc As Document)
     Next i
 End Sub
 
+

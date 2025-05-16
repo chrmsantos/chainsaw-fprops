@@ -645,3 +645,4 @@ Private Sub ShowCompletionMessage(backupPath As String, docPath As String, editC
            "Tempo de execução: " & Format(executionTime, "0.00") & " segundos", _
            vbInformation, "Retificação Completa"
 End Sub
+
