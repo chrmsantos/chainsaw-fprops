@@ -646,3 +646,4 @@ Private Sub ShowCompletionMessage(backupPath As String, docPath As String, editC
            vbInformation, "Retificação Completa"
 End Sub
 
+

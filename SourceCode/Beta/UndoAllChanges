@@ -1,48 +1,86 @@
 '--------------------------------------------------------------------------------
-' Botão: Desfazer todas as alterações
-'--------------------------------------------------------------------------------
-' SUBROTINA: UndoAllChanges
-' Finalidade: Desfaz todas as alterações realizadas no documento ativo.
+' PROCEDURE: UndoAllChanges
+' Purpose: Reverts all changes made to the active document with improved error handling,
+'          performance, and user feedback.
+' Parameters: None
+' Returns: Nothing
 '--------------------------------------------------------------------------------
 Sub UndoAllChanges()
     On Error GoTo ErrorHandler
-
-    ' Verifica se há um documento ativo
-    If Documents.Count = 0 Then
-        MsgBox "Nenhum documento está aberto para desfazer alterações.", vbExclamation, "Documento não encontrado"
-        Exit Sub
-    End If
-
-    Dim doc As Document: Set doc = ActiveDocument
-
-    ' Verifica se há alterações a serem desfeitas
-    If doc.Saved Then
-        MsgBox "Nenhuma alteração foi realizada desde o último salvamento.", vbInformation, "Nada a desfazer"
-        Exit Sub
-    End If
-
-    ' Desativa atualizações para melhorar o desempenho
-    Application.ScreenUpdating = False
-
-    ' Desfaz todas as alterações realizadas no documento
-    Dim undoCount As Long: undoCount = 0
-    Dim maxUndo As Long: maxUndo = 1000 ' Limite de operações de desfazer (ajustável)
     
-    Do While doc.Undo
-        undoCount = undoCount + 1
-        If undoCount >= maxUndo Then Exit Do ' Evita loops infinitos em documentos muito grandes
-    Loop
-
-    ' Restaura configurações
+    ' Validate active document exists
+    If Not IsDocumentAvailable() Then Exit Sub
+    
+    Dim doc As Document
+    Set doc = ActiveDocument
+    
+    ' Check if there are changes to undo
+    If Not HasChangesToUndo(doc) Then Exit Sub
+    
+    ' Perform undo operations with safety limits
+    UndoChanges doc
+    
+    ' Notify user of completion
+    ShowCompletionMessage
+    
+ExitProcedure:
     Application.ScreenUpdating = True
-
-    ' Mensagem de conclusão
-    MsgBox "Todas as alterações realizadas desde a abertura do arquivo ou do último salvamento foram desfeitas com sucesso.", _
-           vbInformation, "Alterações Desfeitas"
     Exit Sub
-
+    
 ErrorHandler:
-    ' Restaura configurações em caso de erro
-    Application.ScreenUpdating = True
-    MsgBox "Erro " & Err.Number & ": " & Err.Description, vbCritical, "Erro ao Desfazer Alterações"
+    HandleError "UndoAllChanges"
+    Resume ExitProcedure
 End Sub
+
+Private Function IsDocumentAvailable() As Boolean
+    If Documents.Count = 0 Then
+        MsgBox "No document is open to undo changes.", vbExclamation, "Document not found"
+        IsDocumentAvailable = False
+        Exit Function
+    End If
+    
+    IsDocumentAvailable = True
+End Function
+
+Private Function HasChangesToUndo(doc As Document) As Boolean
+    If doc.Saved Then
+        MsgBox "No changes made since last save.", vbInformation, "Nothing to undo"
+        HasChangesToUndo = False
+        
+        ' Small optimization - close document reference if we're exiting here anyway 
+        Set doc = Nothing
+        
+        Exit Function
+    End If
+    
+    HasChangesToUndo = True
+End Function
+
+Private Sub UndoChanges(doc As Document)
+    Const MAX_UNDO_OPERATIONS As Long = 1000 ' Safety limit for undo operations
+    
+    Application.ScreenUpdating = False
+    
+    Dim undoCount As Long: undoCount = 0
+    
+     ' More efficient loop structure with explicit condition check first 
+     While doc.Undo And undoCount < MAX_UNDO_OPERATIONS 
+         undoCount = undoCount + 1 
+     Wend 
+    
+End Sub
+
+Private Sub ShowCompletionMessage()
+     MsgBox "All changes since file opening or last save were successfully reverted.", _
+            vbInformation, "Changes Reverted" 
+End Sub 
+
+Private Sub HandleError(procedureName As String)
+     Application.ScreenUpdating = True 
+     
+     Dim errorMsg As String 
+     errorMsg = "Error in procedure '" & procedureName & "'" & vbCrLf & _ 
+                "Error #" & Err.Number & ": " & Err.Description 
+
+     MsgBox errorMsg, vbCritical, "Operation Failed" 
+End Sub 

@@ -35,3 +35,4 @@ ErrorHandler:
     ' Tratamento de erros
     MsgBox "Erro " & Err.Number & ": " & Err.description, vbCritical, "Erro ao Salvar, Fechar e Minimizar"
 End Sub
+
