@@ -57,3 +57,4 @@ Private Sub ApplyStandardReplacements(doc As Document)
         End With
     Next i
 End Sub
+

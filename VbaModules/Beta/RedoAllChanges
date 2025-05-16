@@ -6,43 +6,63 @@
 '--------------------------------------------------------------------------------
 Sub RedoAllChanges()
     On Error GoTo ErrorHandler
-
+    
     ' Verifica se há um documento ativo
     If Documents.Count = 0 Then
         MsgBox "Nenhum documento está aberto para refazer alterações.", vbExclamation, "Documento não encontrado"
         Exit Sub
     End If
-
+    
     Dim doc As Document: Set doc = ActiveDocument
-
-    ' Verifica se há alterações a serem refeitas
-    If doc.Saved Then
-        MsgBox "Nenhuma alteração foi realizada desde o último salvamento.", vbInformation, "Nada a refazer"
+    
+    ' Verifica se há alterações a serem refeitas (forma correta)
+    If Application.RedoList.Count = 0 Then
+        MsgBox "Não há ações disponíveis para refazer.", vbInformation, "Nada a refazer"
         Exit Sub
     End If
-
+    
     ' Desativa atualizações para melhorar o desempenho
     Application.ScreenUpdating = False
-
-    ' Refaz todas as alterações realizadas no documento
-    Dim redoCount As Long: redoCount = 0
-    Dim maxRedo As Long: maxRedo = 1000 ' Limite de operações de refazer (ajustável)
     
-    Do While doc.Redo
-        redoCount = redoCount + 1
-        If redoCount >= maxRedo Then Exit Do ' Evita loops infinitos em documentos muito grandes
+    ' Inicia registro personalizado de desfazer (opcional)
+    On Error Resume Next ' Ignora erro se UndoRecord não estiver disponível nesta versão do Word
+    Application.UndoRecord.StartCustomRecord "Refazer Todas as Alterações"
+    On Error GoTo ErrorHandler
+    
+    ' Refaz todas as alterações realizadas no documento de forma mais confiável
+    Dim initialRedoCount As Long: initialRedoCount = Application.RedoList.Count
+    
+    Do While Application.RedoList.Count > 0 And initialRedoCount > 0
+        doc.Redo
+        
+        ' Segurança adicional contra loops infinitos (embora o Count acima já proteja)
+        initialRedoCount = initialRedoCount - 1
+        If initialRedoCount <= 0 Then Exit Do
+        
+        ' Pequena pausa para evitar sobrecarga do processador em documentos grandes (opcional)
+        DoEvents 
     Loop
-
-    ' Restaura configurações
+    
+Cleanup:
+    ' Finaliza registro personalizado de desfazer (se iniciado) e restaura configurações
+    On Error Resume Next ' Para garantir que o cleanup sempre execute mesmo com erros na finalização
+    
+    Application.UndoRecord.EndCustomRecord
     Application.ScreenUpdating = True
-
-    ' Mensagem de conclusão
-    MsgBox "Todas as alterações realizadas desde a abertura do arquivo ou do último salvamento foram refeitas com sucesso.", _
-           vbInformation, "Alterações Refeitas"
-    Exit Sub
+    
+    If Not Err.Number > 0 Then ' Só mostra mensagem se não houve erro durante o processo principal
+        MsgBox "Todas as alterações realizadas foram refeitas com sucesso.", _
+               vbInformation, "Alterações Refeitas"
+               
+        ' Mostra quantas ações foram refeitas (opcional)
+        Debug.Print "Ações refeitas: " & initialRedoCount - Application.RedoList.Count & " de " & initialRedoCount & " disponíveis."
+    End If
+    
+Exit Sub
 
 ErrorHandler:
-    ' Restaura configurações em caso de erro
-    Application.ScreenUpdating = True
-    MsgBox "Erro " & Err.Number & ": " & Err.Description, vbCritical, "Erro ao Refazer Alterações"
+     MsgBox "Erro ao refazer alterações." & vbCrLf & _
+            "Erro #" & Err.Number & ": " & Err.Description, _
+            vbCritical, "Erro"
+     Resume Cleanup
 End Sub
