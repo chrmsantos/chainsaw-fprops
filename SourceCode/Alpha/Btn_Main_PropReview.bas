@@ -1,16 +1,6 @@
 Option Explicit
 
 '================================================================================
-' DOCUMENT FORMATTING TOOL
-'================================================================================
-' Description: Standardizes document formatting to formal specifications
-' Compatibility: Microsoft Word 2010 and later versions
-' Author: [Your Name]
-' Version: 1.5
-' Last Modified: [Date]
-'================================================================================
-
-'================================================================================
 ' CONSTANTS
 '================================================================================
 
@@ -37,12 +27,12 @@ Private Const HEADER_IMAGE_TOP_MARGIN_CM As Single = 0.27 ' Top margin for the h
 Private Const HEADER_IMAGE_HEIGHT_RATIO As Single = 0.21 ' Height-to-width ratio for the header image
 
 '================================================================================
-' MAIN PROCEDURE: FormatFixes
+' MAIN PROCEDURE: Main_PropReview
 '================================================================================
 ' Purpose: Orchestrates the document formatting process by calling various helper
 ' functions to apply standard formatting, clean up spacing, and insert headers.
 '================================================================================
-Public Sub FormatFixes()
+Public Sub Main_PropReview()
     On Error GoTo ErrorHandler ' Enable error handling
     
     ' Verifica se a versão do Word é 2007 ou superior
@@ -56,6 +46,10 @@ Public Sub FormatFixes()
     
     Dim doc As Document ' Variable to hold the active document
     Set doc = ActiveDocument
+    
+    ' === BACKUP ANTES DE QUALQUER ALTERAÇÃO ===
+    Dim backupPath As String
+    backupPath = CreateBackup(doc) ' Md_OrigPropsBackup.CreateBackup deve estar disponível no projeto
     
     ' Verifica se o documento está protegido
     If doc.ProtectionType <> wdNoProtection Then
@@ -93,7 +87,6 @@ Public Sub FormatFixes()
     End With
     
     ' Exemplo de chamada correta:
-    Dim backupPath As String: backupPath = ""
     Dim docPath As String: docPath = doc.FullName
     Dim editCount As Integer: editCount = 0
     Dim executionTime As Double: executionTime = 0
@@ -106,7 +99,7 @@ Public Sub FormatFixes()
     
 ErrorHandler:
     ' Handle errors and restore application state
-    HandleError "FormatFixes"
+    HandleError "Main_PropReview"
     With Application
         .ScreenUpdating = True
         .StatusBar = False

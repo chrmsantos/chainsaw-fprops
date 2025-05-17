@@ -1,8 +1,20 @@
-' Basic formal text replacements
-    ApplyStandardReplacements doc ' Apply standard text replacements
-    FixConsiderandoEnding doc ' Fix "Considerando" ending
+'================================================================================
+' PONTO DE ENTRADA: RunBasicNonAiTextFixes
+' Orquestra as correções textuais básicas não-AI no documento informado.
+'================================================================================
+Public Sub RunBasicNonAiTextFixes(doc As Document)
+    On Error GoTo ErrorHandler
 
-    '--------------------------------------------------------------------------------
+    ApplyStandardReplacements doc ' Substituições padrão
+    FixConsiderandoEnding doc    ' Ajuste de "Considerando"
+
+    Exit Sub
+
+ErrorHandler:
+    MsgBox "Erro ao executar as correções textuais: " & Err.Description, vbCritical, "Erro"
+End Sub
+
+'--------------------------------------------------------------------------------
 ' SUBROTINA: FixConsiderandoEnding
 ' Finalidade: Garante que parágrafos iniciados com "Considerando" terminem com ponto e vírgula (;).
 '--------------------------------------------------------------------------------
@@ -31,7 +43,7 @@ Private Sub FixConsiderandoEnding(doc As Document)
     Next para
 End Sub
 
---------------------------------------------------------------------------------
+'--------------------------------------------------------------------------------
 ' SUBROTINA: ApplyStandardReplacements
 ' Realiza substituições de texto no documento com base em padrões predefinidos.
 '--------------------------------------------------------------------------------
