@@ -4,7 +4,7 @@
 ' SUBROTINA: SaveMinAndExit
 ' Finalidade: Salva o documento ativo, fecha-o e minimiza a janela do Microsoft Word.
 '--------------------------------------------------------------------------------
-Sub SaveAndExit()
+Sub Main_Main_SAE()
     On Error GoTo ErrorHandler
 
     ' Verifica se há um documento ativo

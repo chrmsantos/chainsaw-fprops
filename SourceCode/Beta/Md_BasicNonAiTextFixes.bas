@@ -1,8 +1,8 @@
 '================================================================================
-' PONTO DE ENTRADA: Main_RBNAF
+' PONTO DE ENTRADA: Main_BNATF
 ' Orquestra as correções textuais básicas não-AI no documento informado.
 '================================================================================
-Public Sub Main_RBNAF(doc As Document)
+Public Sub Main_BNATF(doc As Document)
     On Error GoTo ErrorHandler
 
     ReplaceLastWordFirstLine doc ' Substituição da última palavra da primeira linha

@@ -1,162 +1,64 @@
-Option Explicit
-
-'================================================================================
-' CONSTANTS
-'================================================================================
-
-' Constants for Word operations
-Private Const wdFindContinue As Long = 1 ' Continue search after the first match
-Private Const wdReplaceOne As Long = 1 ' Replace only one occurrence
-Private Const wdLineSpaceSingle As Long = 0 ' Single line spacing
-Private Const STANDARD_FONT As String = "Arial" ' Standard font for the document
-Private Const STANDARD_FONT_SIZE As Long = 12 ' Standard font size
-Private Const LINE_SPACING As Long = 12 ' Line spacing in points
-
-' Margin constants in centimeters
-Private Const TOP_MARGIN_CM As Double = 4.5 ' Top margin in cm
-Private Const BOTTOM_MARGIN_CM As Double = 2# ' Bottom margin in cm
-Private Const LEFT_MARGIN_CM As Double = 3# ' Left margin in cm
-Private Const RIGHT_MARGIN_CM As Double = 3# ' Right margin in cm
-Private Const HEADER_DISTANCE_CM As Double = 0.7 ' Distance from header to content in cm
-Private Const FOOTER_DISTANCE_CM As Double = 0.7 ' Distance from footer to content in cm
-
-' Header image constants
-Private Const HEADER_IMAGE_RELATIVE_PATH As String = "\RevisorDeProposituras\Personalizations\DefaultHeader.png" ' Relative path to the header image
-Private Const HEADER_IMAGE_MAX_WIDTH_CM As Single = 17 ' Maximum width of the header image in cm
-Private Const HEADER_IMAGE_TOP_MARGIN_CM As Single = 0.27 ' Top margin for the header image in cm
-Private Const HEADER_IMAGE_HEIGHT_RATIO As Single = 0.21 ' Height-to-width ratio for the header image
-
-'================================================================================
-' MAIN PROCEDURE: Main_PropReview
-'================================================================================
-' Purpose: Orchestrates the document formatting process by calling various helper
-' functions to apply standard formatting, clean up spacing, and insert headers.
-'================================================================================
-Public Sub Main_PropReview()
-    On Error GoTo ErrorHandler ' Enable error handling
-    
-    ' Verifica se a versão do Word é 2007 ou superior
-    If Application.Version < 12 Then
-        MsgBox "Este script requer o Microsoft Word 2007 ou superior.", vbExclamation, "Versão Incompatível"
-        Exit Sub
-    End If
-    
-    ' Validate document state
-    If Not IsDocumentValid() Then Exit Sub ' Exit if the document is invalid
-    
-    Dim doc As Document ' Variable to hold the active document
-    Set doc = ActiveDocument
-
-    ' === AJUSTA O ZOOM PARA 110% ===
-    On Error Resume Next
-    ActiveWindow.View.Zoom.Percentage = 110
-    On Error GoTo ErrorHandler
-
-    ' === ATIVAR CONTROLAR ALTERAÇÕES ===
-    doc.TrackRevisions = True
-
-    ' === BACKUP ANTES DE QUALQUER ALTERAÇÃO ===
-    Dim backupPath As String
-    backupPath = CreateBackup(doc) ' Md_OrigPropsBackup.CreateBackup deve estar disponível no projeto
-    
-    ' Verifica se o documento está protegido
-    If doc.ProtectionType <> wdNoProtection Then
-        MsgBox "O documento está protegido. Por favor, desproteja-o antes de continuar.", _
-               vbExclamation, "Documento Protegido"
-        Exit Sub
-    End If
-    
-    ' Optimize performance by disabling screen updates and alerts
-    With Application
-        .ScreenUpdating = False
-        .DisplayAlerts = False
-        .StatusBar = "Formatting document..."
-    End With
-    
-    ' Formatting steps
-    ' Sequential order matters here
-    ' Decontructive formatting steps
+    Public Sub Main_Formatting(doc As Document)
+    ' Cleaning format steps
     ResetBasicFormatting doc ' Reset basic formatting
-    ClearDocumentMetadata doc ' Clear document metadata
     RemoveAllWatermarks doc ' Remove watermarks
     RemoveBlankLines doc ' Remove blank lines
     EnsureBlankLineBelowTextParagraphs doc ' Ensure blank line below text paragraphs
     RemoveLeadingBlankLines doc ' Remove leading blank lines
     CleanDocumentSpacing doc ' Clean up document spacing
     RemoveExtraPageBreaks doc ' Remove extra page breaks
-    ' Constructive formatting steps
+    ' Setting format steps
     ApplyStandardFormatting doc ' Apply standard formatting
     InsertStandardHeaderImage doc ' Insert standard header image
     FormatSpecificLines doc ' Format specific lines
+    End Sub
 
-    ' Calling the text replacement subroutine
-    Main_RBNAF doc ' Call the text replacement module
 
-    ' Restore application state
-    With Application
-        .ScreenUpdating = True
-        .DisplayAlerts = True
-        .StatusBar = False
-    End With
+'================================================================================
+' ResetBasicFormatting
+' Purpose: Resets all direct formatting in the document to its default state.
+'================================================================================
+Private Sub ResetBasicFormatting(doc As Document)
+    On Error GoTo ErrorHandler ' Enable error handling
     
-    ' Exemplo de chamada correta:
-    Dim docPath As String: docPath = doc.FullName
-    Dim editCount As Integer: editCount = 0
-    Dim executionTime As Double: executionTime = 0
-
-    ShowCompletionMessage backupPath, docPath, editCount, executionTime
+    ' Reset all direct formatting
+    doc.Content.Font.Reset
+    doc.Content.ParagraphFormat.Reset
     
-    ' Limpeza de variáveis
-    Set doc = Nothing
-    Exit Sub ' Exit the procedure
+    Exit Sub ' Exit the function
     
 ErrorHandler:
-    ' Handle errors and restore application state
-    HandleError "Main_PropReview"
-    With Application
-        .ScreenUpdating = True
-        .DisplayAlerts = True
-        .StatusBar = False
-    End With
-    Set doc = Nothing
+    ' Handle errors
+    HandleError "ResetBasicFormatting"
 End Sub
 
 '================================================================================
-' DOCUMENT VALIDATION FUNCTIONS
+' RemoveAllWatermarks
+' Purpose: Removes all watermarks from the document by deleting shapes in headers.
 '================================================================================
-
-'================================================================================
-' IsDocumentValid
-' Purpose: Validates the state of the active document to ensure it is suitable
-' for formatting.
-'================================================================================
-Private Function IsDocumentValid() As Boolean
-    ' Check if any document is open
-    If Documents.Count = 0 Then
-        MsgBox "No document is currently open.", vbExclamation, "Document Required"
-        Exit Function
-    End If
+Private Sub RemoveAllWatermarks(doc As Document)
+    On Error GoTo ErrorHandler ' Enable error handling
     
-    ' Check if the active window contains a valid Word document
-    If Not TypeOf ActiveDocument Is Document Then
-        MsgBox "The active window does not contain a valid Word document.", _
-               vbExclamation, "Invalid Document Type"
-        Exit Function
-    End If
+    Dim sec As section ' Variable to hold each section
+    Dim hdr As HeaderFooter ' Variable to hold each header/footer
+    Dim shp As shape ' Variable to hold each shape
     
-    ' Check if the document contains any text
-    If Len(Trim(ActiveDocument.Content.text)) = 0 Then
-        MsgBox "The document contains no text to format.", _
-               vbExclamation, "Empty Document"
-        Exit Function
-    End If
+    ' Loop through all sections and headers
+    For Each sec In doc.Sections
+        For Each hdr In sec.Headers
+            ' Remove all shapes in headers
+            For Each shp In hdr.Shapes
+                shp.Delete ' Delete the shape
+            Next shp
+        Next hdr
+    Next sec
     
-    IsDocumentValid = True ' Return True if all checks pass
-End Function
-
-'================================================================================
-' FORMATTING FUNCTIONS
-'================================================================================
+    Exit Sub ' Exit the function
+    
+ErrorHandler:
+    ' Handle errors
+    HandleError "RemoveAllWatermarks"
+End Sub
 
 '================================================================================
 ' RemoveLeadingBlankLines
@@ -226,6 +128,26 @@ Private Sub CleanDocumentSpacing(doc As Document)
 ErrorHandler:
     ' Handle errors
     HandleError "CleanDocumentSpacing"
+End Sub
+
+'================================================================================
+' RemoveBlankLines
+' Purpose: Removes all blank lines (empty paragraphs) from the document.
+'================================================================================
+Private Sub RemoveBlankLines(doc As Document)
+    On Error GoTo ErrorHandler
+
+    Dim i As Long
+    For i = doc.Paragraphs.Count To 1 Step -1
+        If Len(Trim(doc.Paragraphs(i).Range.Text)) = 0 Then
+            doc.Paragraphs(i).Range.Delete
+        End If
+    Next i
+
+    Exit Sub
+
+ErrorHandler:
+    HandleError "RemoveBlankLines"
 End Sub
 
 '================================================================================
@@ -335,52 +257,6 @@ ErrorHandler:
 End Sub
 
 '================================================================================
-' ResetBasicFormatting
-' Purpose: Resets all direct formatting in the document to its default state.
-'================================================================================
-Private Sub ResetBasicFormatting(doc As Document)
-    On Error GoTo ErrorHandler ' Enable error handling
-    
-    ' Reset all direct formatting
-    doc.Content.Font.Reset
-    doc.Content.ParagraphFormat.Reset
-    
-    Exit Sub ' Exit the function
-    
-ErrorHandler:
-    ' Handle errors
-    HandleError "ResetBasicFormatting"
-End Sub
-
-'================================================================================
-' RemoveAllWatermarks
-' Purpose: Removes all watermarks from the document by deleting shapes in headers.
-'================================================================================
-Private Sub RemoveAllWatermarks(doc As Document)
-    On Error GoTo ErrorHandler ' Enable error handling
-    
-    Dim sec As section ' Variable to hold each section
-    Dim hdr As HeaderFooter ' Variable to hold each header/footer
-    Dim shp As shape ' Variable to hold each shape
-    
-    ' Loop through all sections and headers
-    For Each sec In doc.Sections
-        For Each hdr In sec.Headers
-            ' Remove all shapes in headers
-            For Each shp In hdr.Shapes
-                shp.Delete ' Delete the shape
-            Next shp
-        Next hdr
-    Next sec
-    
-    Exit Sub ' Exit the function
-    
-ErrorHandler:
-    ' Handle errors
-    HandleError "RemoveAllWatermarks"
-End Sub
-
-'================================================================================
 ' InsertStandardHeaderImage
 ' Purpose: Inserts a standard header image into the document's headers.
 '================================================================================
@@ -479,80 +355,12 @@ ErrorHandler:
 End Sub
 
 '================================================================================
-' RemoveBlankLines
-' Purpose: Removes all blank lines (empty paragraphs) from the document.
-'================================================================================
-Private Sub RemoveBlankLines(doc As Document)
-    On Error GoTo ErrorHandler
-
-    Dim i As Long
-    For i = doc.Paragraphs.Count To 1 Step -1
-        If Len(Trim(doc.Paragraphs(i).Range.Text)) = 0 Then
-            doc.Paragraphs(i).Range.Delete
-        End If
-    Next i
-
-    Exit Sub
-
-ErrorHandler:
-    HandleError "RemoveBlankLines"
-End Sub
-
-'================================================================================
-' HELPER FUNCTIONS
-'================================================================================
-
-'================================================================================
 ' CentimetersToPoints
 ' Purpose: Converts a value in centimeters to points.
 '================================================================================
 Private Function CentimetersToPoints(cm As Double) As Single
     CentimetersToPoints = Application.CentimetersToPoints(cm)
 End Function
-
-'================================================================================
-' HandleError
-' Purpose: Handles errors by displaying an error message and logging it to the
-' debug console.
-'================================================================================
-Private Sub HandleError(procedureName As String)
-    Dim errMsg As String ' Variable to hold the error message
-    
-    ' Build the error message
-    errMsg = "Erro na sub-rotina: " & procedureName & vbCrLf & _
-             "Erro #" & Err.Number & ": " & Err.Description
-    
-    ' Display the error message to the user
-    MsgBox errMsg, vbCritical, "Erro de Formatação"
-    
-    ' Log the error message to the debug console
-    Debug.Print errMsg
-    
-    ' Clear the error
-    Err.Clear
-End Sub
-
-'--------------------------------------------------------------------------------
-' SUBROTINA: ClearDocumentMetadata
-' Remove os metadados do documento ativo.
-'--------------------------------------------------------------------------------
-Private Sub ClearDocumentMetadata(doc As Document)
-    On Error Resume Next
-
-    Dim prop As DocumentProperty
-    doc.BuiltInDocumentProperties("Title") = ""
-    doc.BuiltInDocumentProperties("Subject") = ""
-    doc.BuiltInDocumentProperties("Keywords") = ""
-    doc.BuiltInDocumentProperties("Comments") = ""
-    doc.BuiltInDocumentProperties("Author") = "Anônimo"
-    doc.BuiltInDocumentProperties("Last Author") = "Anônimo"
-    doc.BuiltInDocumentProperties("Manager") = ""
-    doc.BuiltInDocumentProperties("Company") = ""
-
-    For Each prop In doc.CustomDocumentProperties
-        prop.Delete
-    Next prop
-End Sub
 
 '--------------------------------------------------------------------------------
 ' SUBROTINA: FormatSpecificLines
@@ -642,14 +450,26 @@ Private Function RemoveExtraPageBreaks(doc As Document) As Integer
     RemoveExtraPageBreaks = editCount
 End Function
 
-'--------------------------------------------------------------------------------
-' SUBROTINA: ShowCompletionMessage
-' Exibe uma mensagem de conclusão com informações sobre o backup e o processamento.
-'--------------------------------------------------------------------------------
-Private Sub ShowCompletionMessage(backupPath As String, docPath As String, editCount As Integer, executionTime As Double)
-    MsgBox "Retificação concluída com sucesso!" & vbCrLf & vbCrLf & _
-           "Backup criado em: " & backupPath & vbCrLf & _
-           vbInformation, "Retificação Completa"
+'================================================================================
+' HandleError
+' Purpose: Handles errors by displaying an error message and logging it to the
+' debug console.
+'================================================================================
+Private Sub HandleError(procedureName As String)
+    Dim errMsg As String ' Variable to hold the error message
+    
+    ' Build the error message
+    errMsg = "Erro na sub-rotina: " & procedureName & vbCrLf & _
+             "Erro #" & Err.Number & ": " & Err.Description
+    
+    ' Display the error message to the user
+    MsgBox errMsg, vbCritical, "Erro de Formatação"
+    
+    ' Log the error message to the debug console
+    Debug.Print errMsg
+    
+    ' Clear the error
+    Err.Clear
 End Sub
 
 

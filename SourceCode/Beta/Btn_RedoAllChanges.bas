@@ -1,10 +1,10 @@
 '--------------------------------------------------------------------------------
 ' Botão: Refaz todas as alterações
 '--------------------------------------------------------------------------------
-' SUBROTINA: RedoAllChanges
+' SUBROTINA: Main_RAC
 ' Finalidade: Refaz todas as alterações realizadas no documento ativo.
 '--------------------------------------------------------------------------------
-Sub RedoAllChanges()
+Sub Main_RAC()
     On Error GoTo ErrorHandler
     
     ' Verifica se há um documento ativo

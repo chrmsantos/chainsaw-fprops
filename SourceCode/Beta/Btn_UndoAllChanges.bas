@@ -1,11 +1,11 @@
 '--------------------------------------------------------------------------------
-' PROCEDURE: UndoAllChanges
+' PROCEDURE: Main_UAC
 ' Purpose: Reverts all changes made to the active document with improved error handling,
 '          performance, and user feedback.
 ' Parameters: None
 ' Returns: Nothing
 '--------------------------------------------------------------------------------
-Sub UndoAllChanges()
+Sub Main_UAC()
     On Error GoTo ErrorHandler
     
     ' Validate active document exists
@@ -28,7 +28,7 @@ ExitProcedure:
     Exit Sub
     
 ErrorHandler:
-    HandleError "UndoAllChanges"
+    HandleError "Main_UAC"
     Resume ExitProcedure
 End Sub
 

@@ -1,11 +1,11 @@
 Option Explicit
 
 '--------------------------------------------------------------------------------
-' FUNÇÃO: CreateBackup
+' FUNÇÃO: Main_OPB
 ' Cria um backup do documento ativo, garantindo que o diretório seja criado se não existir.
 ' Retorna o caminho do backup criado ou "" em caso de erro.
 '--------------------------------------------------------------------------------
-Public Function CreateBackup(doc As Document) As String
+Public Function Main_OPB(doc As Document) As String
     On Error GoTo ErrorHandler
     
     Const MAX_PATH_LENGTH As Integer = 260
@@ -32,7 +32,7 @@ Public Function CreateBackup(doc As Document) As String
     ' Validate total path length won't exceed limits when combined with filename
     If Len(backupFolder) + Len(docName) > MAX_PATH_LENGTH Then
         MsgBox "O caminho do backup é muito longo para ser salvo.", vbExclamation, "Aviso de Backup"
-        CreateBackup = ""
+        Main_OPB = ""
         Exit Function
     End If
     
@@ -40,7 +40,7 @@ Public Function CreateBackup(doc As Document) As String
     If Not CreateDirectoryIfNeeded(backupFolder) Then
         MsgBox "Não foi possível criar o diretório de backup: " & backupFolder & vbCrLf & _
                "A execução continuará sem o backup.", vbExclamation, "Aviso de Backup"
-        CreateBackup = ""
+        Main_OPB = ""
         Exit Function
     End If
     
@@ -56,19 +56,19 @@ Case 0     ' Success - no error
         
 Case Else  ' Any other error        
         MsgBox "Erro ao salvar o backup: " & Err.Description, vbExclamation, "Aviso de Backup"
-        CreateBackup = ""
+        Main_OPB = ""
         Err.Clear        
 Exit Function        
 End Select        
 On Error GoTo ErrorHandler
     
-CreateBackup = backupPath    
+Main_OPB = backupPath    
 Exit Function
 
 ErrorHandler:    
 MsgBox "Erro ao criar o backup: " & Err.Description & vbCrLf & _       
 "A execução continuará sem o backup.", vbExclamation, "Aviso de Backup"    
-CreateBackup = ""    
+Main_OPB = ""    
 End Function
 
 
