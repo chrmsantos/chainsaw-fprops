@@ -4,10 +4,10 @@ Public Sub Main_SuppAndDoc()
     Dim supportUrl As String
     supportUrl = "https://github.com/chrmsantos/RevisorDeProposituras" ' Altere para o link desejado
 
-    Dim ret As Variant
-    ret = Shell("cmd /c start " & supportUrl, vbHide)
-    If ret = 0 Then
-        MsgBox "Não foi possível abrir o navegador. Verifique as configurações do sistema.", vbExclamation, "Erro ao Abrir Link"
+    If supportUrl <> "" Then
+        ActiveDocument.FollowHyperlink Address:=supportUrl, NewWindow:=True
+    Else
+        MsgBox "URL de suporte não definida.", vbExclamation, "Atenção"
     End If
     Exit Sub
 
