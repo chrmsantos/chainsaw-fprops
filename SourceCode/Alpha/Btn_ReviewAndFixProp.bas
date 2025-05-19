@@ -115,7 +115,6 @@ ErrorHandler:
     HandleError "Main_PropReview"
     With Application
         .ScreenUpdating = True
-        .EnableEvents = True
         .DisplayAlerts = True
         .StatusBar = False
     End With
