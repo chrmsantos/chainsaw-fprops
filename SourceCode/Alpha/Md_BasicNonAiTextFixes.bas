@@ -1,12 +1,13 @@
 '================================================================================
-' PONTO DE ENTRADA: RunBasicNonAiTextFixes
+' PONTO DE ENTRADA: Main_RBNAF
 ' Orquestra as correções textuais básicas não-AI no documento informado.
 '================================================================================
-Public Sub RunBasicNonAiTextFixes(doc As Document)
+Public Sub Main_RBNAF(doc As Document)
     On Error GoTo ErrorHandler
 
     ApplyStandardReplacements doc ' Substituições padrão
     FixConsiderandoEnding doc    ' Ajuste de "Considerando"
+    ReplaceLastWordFirstLine doc ' Substituição da última palavra da primeira linha
 
     Exit Sub
 
@@ -67,6 +68,59 @@ Private Sub ApplyStandardReplacements(doc As Document)
             .MatchWildcards = replacements(i)(2)
             .Execute Replace:=wdReplaceAll
         End With
+    Next i
+End Sub
+
+'--------------------------------------------------------------------------------
+' SUBROTINA: ReplaceLastWordFirstLine
+' Finalidade: Substitui a última palavra da primeira linha por "$NUMERO$/$ANO$".
+'--------------------------------------------------------------------------------
+Private Sub ReplaceLastWordFirstLine(doc As Document)
+    On Error Resume Next
+
+    If doc.Paragraphs.Count = 0 Then Exit Sub
+
+    Dim para As Paragraph
+    Set para = doc.Paragraphs(1)
+    Dim paraText As String
+    paraText = Trim(Replace(para.Range.Text, vbCr, ""))
+
+    If Len(paraText) = 0 Then Exit Sub
+
+    Dim words() As String
+    words = Split(paraText, " ")
+
+    If UBound(words) >= 0 Then
+        words(UBound(words)) = "$NUMERO$/$ANO$"
+        paraText = Join(words, " ")
+        para.Range.Text = paraText & vbCr
+    End If
+End Sub
+
+'--------------------------------------------------------------------------------
+' SUBROTINA: UpdateDateBeforeSignature
+' Atualiza a linha de data (terceira acima da palavra-chave de assinatura) para a data atual.
+'--------------------------------------------------------------------------------
+Private Sub UpdateDateBeforeSignature(doc As Document)
+    On Error Resume Next
+
+    If doc.Paragraphs.Count < 4 Then Exit Sub
+
+    Dim i As Long
+    Dim paraText As String
+    Dim keywords As Variant
+    keywords = Array("vereador", "presidente", "vice-presidente", "1º secretário", "2º secretário")
+
+    For i = doc.Paragraphs.Count To 4 Step -1
+        paraText = LCase(Trim(doc.Paragraphs(i).Range.Text))
+        Dim k As Integer
+        For k = LBound(keywords) To UBound(keywords)
+            If InStr(paraText, keywords(k)) > 0 Then
+                ' Atualiza a terceira linha acima da palavra-chave
+                doc.Paragraphs(i - 3).Range.Text = Format(Date, "d 'de' mmmm 'de' yyyy") & vbCr
+                Exit Sub
+            End If
+        Next k
     Next i
 End Sub
 

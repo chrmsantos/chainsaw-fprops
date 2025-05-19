@@ -46,7 +46,15 @@ Public Sub Main_PropReview()
     
     Dim doc As Document ' Variable to hold the active document
     Set doc = ActiveDocument
-    
+
+    ' === AJUSTA O ZOOM PARA 110% ===
+    On Error Resume Next
+    ActiveWindow.View.Zoom.Percentage = 110
+    On Error GoTo ErrorHandler
+
+    ' === ATIVAR CONTROLAR ALTERAÇÕES ===
+    doc.TrackRevisions = True
+
     ' === BACKUP ANTES DE QUALQUER ALTERAÇÃO ===
     Dim backupPath As String
     backupPath = CreateBackup(doc) ' Md_OrigPropsBackup.CreateBackup deve estar disponível no projeto
@@ -79,6 +87,9 @@ Public Sub Main_PropReview()
     ApplyStandardFormatting doc ' Apply standard formatting
     InsertStandardHeaderImage doc ' Insert standard header image
     FormatSpecificLines doc ' Format specific lines
+
+    ' Calling the text replacement subroutine
+    Main_RBNAF doc ' Call the text replacement module
 
     ' Restore application state
     With Application
