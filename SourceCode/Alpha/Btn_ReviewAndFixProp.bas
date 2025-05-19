@@ -66,9 +66,10 @@ Public Sub Main_PropReview()
         Exit Sub
     End If
     
-    ' Optimize performance by disabling screen updates
+    ' Optimize performance by disabling screen updates and alerts
     With Application
         .ScreenUpdating = False
+        .DisplayAlerts = False
         .StatusBar = "Formatting document..."
     End With
     
@@ -94,6 +95,7 @@ Public Sub Main_PropReview()
     ' Restore application state
     With Application
         .ScreenUpdating = True
+        .DisplayAlerts = True
         .StatusBar = False
     End With
     
@@ -113,6 +115,8 @@ ErrorHandler:
     HandleError "Main_PropReview"
     With Application
         .ScreenUpdating = True
+        .EnableEvents = True
+        .DisplayAlerts = True
         .StatusBar = False
     End With
     Set doc = Nothing
@@ -645,8 +649,6 @@ End Function
 Private Sub ShowCompletionMessage(backupPath As String, docPath As String, editCount As Integer, executionTime As Double)
     MsgBox "Retificação concluída com sucesso!" & vbCrLf & vbCrLf & _
            "Backup criado em: " & backupPath & vbCrLf & _
-           "Número de edições realizadas: " & editCount & vbCrLf & _
-           "Tempo de execução: " & Format(executionTime, "0.00") & " segundos", _
            vbInformation, "Retificação Completa"
 End Sub
 
