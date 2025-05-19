@@ -579,6 +579,7 @@ Private Sub FormatSpecificLines(doc As Document)
         If paraIndex = 1 Then
             With para.Range
                 .Font.Bold = True
+                .Font.Underline = wdUnderlineSingle
                 .Font.AllCaps = True
                 .ParagraphFormat.Alignment = wdAlignParagraphCenter
                 .ParagraphFormat.LeftIndent = 0
