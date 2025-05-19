@@ -1,2 +1,0 @@
-Sub TechnicalSupport()
-End Sub
