@@ -1,17 +1,22 @@
 Public Sub Main_SuppAndDoc()
-    ' Abre o link de suporte/documentação no navegador padrão
-    On Error GoTo ErrorHandler
+    ' Abre o link de suporte/documentação no navegador padrão de forma robusta e segura
     Dim supportUrl As String
     supportUrl = "https://github.com/chrmsantos/RevisorDeProposituras" ' Altere para o link desejado
 
-    If supportUrl <> "" Then
-        ActiveDocument.FollowHyperlink Address:=supportUrl, NewWindow:=True
-    Else
-        MsgBox "URL de suporte não definida.", vbExclamation, "Atenção"
-    End If
-    Exit Sub
+    On Error Resume Next
 
-ErrorHandler:
-    MsgBox "Erro ao tentar abrir o link de suporte:" & vbCrLf & _
-           "Erro " & Err.Number & ": " & Err.Description, vbCritical, "Erro"
+    If supportUrl = "" Then
+        MsgBox "URL de suporte não definida.", vbExclamation, "Atenção"
+        Exit Sub
+    End If
+
+    ' Abrir pelo método nativo do Word
+    Err.Clear
+    ActiveDocument.FollowHyperlink Address:=supportUrl, NewWindow:=True
+    If Err.Number = 0 Then Exit Sub
+
+    ' Mensagem de erro detalhada
+    MsgBox "Não foi possível abrir o link de suporte no navegador padrão." & vbCrLf & _
+           "Erro " & Err.Number & ": " & Err.description, vbCritical, "Erro ao Abrir Link"
 End Sub
+
