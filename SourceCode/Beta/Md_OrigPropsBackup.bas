@@ -27,7 +27,7 @@ Public Function CreateBackup(doc As Document) As String
         docName = Left(docName, 45) & "..." & Right(docName, 5)
     End If
     
-    backupFolder = Environ("USERPROFILE") & "\RevisorDeProposituras\BackupsPropositurasOriginais\" & Format(Date, "yyyy-mm-dd") & "\"
+    backupFolder = Environ("USERPROFILE") & "\RevisorDeProposituras\BkpsPropsOriginais\" & Format(Date, "yyyy-mm-dd") & "\"
     
     ' Validate total path length won't exceed limits when combined with filename
     If Len(backupFolder) + Len(docName) > MAX_PATH_LENGTH Then
@@ -76,37 +76,40 @@ End Function
 ' FUNÇÃO: GetUniqueFileName  
 ' Gera um nome de arquivo único adicionando um sufixo numérico se necessário  
 '-------------------------------------------------------------------------------- 
-Private Function GetUniqueFileName(folderPath As String, baseName As String) As String    
-Dim fso As Object    
-Dim counter As Integer    
-Dim testPath As String    
+Private Function GetUniqueFileName(folderPath As String, baseName As String) As String
+    Dim fso As Object
+    Dim counter As Integer
+    Dim testPath As String
+
+    Set fso = CreateObject("Scripting.FileSystemObject")
     
-Set fso = CreateObject("Scripting.FileSystemObject")    
-    
-' Remove any trailing backslash from folder path    
-folderPath = fso.GetParentFolder(folderPath & "x")    
-    
-testPath = folderPath & "\" & baseName    
-    
-If Not fso.FileExists(testPath) Then        
-GetUniqueFileName = testPath        
-Exit Function    
-End If    
-    
-counter = 1    
-    
-Do While True        
-testPath = folderPath & "\" & fso.GetBaseName(baseName) & "_" & counter        
-If Right(baseName, 5) Like "*.[a-zA-Z]??" Then            
-testPath = testPath & "." & fso.GetExtensionName(baseName)        
-End If                
-If Not fso.FileExists(testPath) Then Exit Do                
-counter = counter + 1                
-If counter > 1000 Then Exit Do  ' Prevents infinite loops in extreme cases   
-Loop    
-    
-GetUniqueFileName = testPath   
-Set fso = Nothing 
+    ' Remove qualquer barra invertida final do caminho
+    If Right(folderPath, 1) = "\" Then
+        folderPath = Left(folderPath, Len(folderPath) - 1)
+    End If
+
+    testPath = folderPath & "\" & baseName
+
+    If Not fso.FileExists(testPath) Then
+        GetUniqueFileName = testPath
+        Set fso = Nothing
+        Exit Function
+    End If
+
+    counter = 1
+
+    Do While True
+        testPath = folderPath & "\" & fso.GetBaseName(baseName) & "_" & counter
+        If Right(baseName, 5) Like "*.[a-zA-Z]??" Then
+            testPath = testPath & "." & fso.GetExtensionName(baseName)
+        End If
+        If Not fso.FileExists(testPath) Then Exit Do
+        counter = counter + 1
+        If counter > 1000 Then Exit Do  ' Prevents infinite loops in extreme cases
+    Loop
+
+    GetUniqueFileName = testPath
+    Set fso = Nothing
 End Function
 
 
@@ -135,26 +138,46 @@ SanitizeFileName=result
 End Function
 
 
-Public Function CreateDirectoryIfNeeded(folderPath as String) as Boolean 
-On Error GoTo ErrorHandler     
-Dim fso as Object     
-Set fso=CreateObject("Scripting.FileSystemObject")     
+'--------------------------------------------------------------------------------
+' FUNÇÃO: CreateDirectoryIfNeeded
+' Cria o diretório especificado (e subdiretórios) se não existirem.
+' Retorna True se o diretório existir ou for criado com sucesso, False caso contrário.
+'--------------------------------------------------------------------------------
+Public Function CreateDirectoryIfNeeded(folderPath As String) As Boolean
+    On Error GoTo ErrorHandler
+    Dim fso As Object
+    Dim folders() As String
+    Dim currentPath As String
+    Dim i As Integer
 
-folderPath=fso.GetParentFolder(folderpath&"x") ' Normalizes path     
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    folderPath = Trim(folderPath)
+    If Right(folderPath, 1) = "\" Then folderPath = Left(folderPath, Len(folderPath) - 1)
+    
+    If fso.FolderExists(folderPath) Then
+        CreateDirectoryIfNeeded = True
+        Set fso = Nothing
+        Exit Function
+    End If
 
-If Not fso.FolderExists(folderpath )Then         
-fso.CreateFolder folderpath     
-End If      
+    folders = Split(folderPath, "\")
+    currentPath = folders(0)
+    If InStr(currentPath, ":") = 0 Then currentPath = folders(0) & "\"
+    For i = 1 To UBound(folders)
+        If currentPath <> "" And Right(currentPath, 1) <> "\" Then currentPath = currentPath & "\"
+        currentPath = currentPath & folders(i)
+        If Not fso.FolderExists(currentPath) Then
+            fso.CreateFolder currentPath
+        End If
+    Next i
 
-CreateDirectoryIfNeeded=f so.FolderExists(folderpath )      
-Set f so=Nothing      
-Exit Function      
+    CreateDirectoryIfNeeded = fso.FolderExists(folderPath)
+    Set fso = Nothing
+    Exit Function
 
-ErrorHandler :      
-MsgBox"Erro ao criar diretório:"&folderpath&vbCrLf&_       
-"Erro"&Err .Number&":"&Err .Description,vbCritical,"Erro no Backup"      
-CreateDirectoryIfNeeded=False      
-Set fs o=Nothing      
-End Function 
+ErrorHandler:
+    CreateDirectoryIfNeeded = False
+    Set fso = Nothing
+End Function
 
 
