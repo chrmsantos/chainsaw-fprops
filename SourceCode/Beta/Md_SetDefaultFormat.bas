@@ -41,6 +41,7 @@ Public Sub Main_SDF(doc As Document)
 
     ' Setting format steps
     ApplyStandardFormatting doc ' Apply standard formatting
+    RemoveBlankLines doc ' Remove blank lines
     EnsureBlankLineBelowTextParagraphs doc ' Ensure blank line below text paragraphs
     InsertStandardHeaderImage doc ' Insert standard header image
     FormatSpecificLines doc ' Format specific lines
@@ -93,6 +94,26 @@ End Sub
 Private Function CentimetersToPoints(ByVal cm As Double) As Single
     CentimetersToPoints = Application.CentimetersToPoints(cm)
 End Function
+
+'================================================================================
+' RemoveBlankLines
+' Purpose: Removes all blank lines (empty paragraphs) from the document.
+'================================================================================
+Private Sub RemoveBlankLines(doc As Document)
+    On Error GoTo ErrorHandler
+
+    Dim i As Long
+    For i = doc.Paragraphs.Count To 1 Step -1
+        If Len(Trim(doc.Paragraphs(i).Range.Text)) = 0 Then
+            doc.Paragraphs(i).Range.Delete
+        End If
+    Next i
+
+    Exit Sub
+
+ErrorHandler:
+    HandleError "RemoveBlankLines"
+End Sub
 
 '================================================================================
 ' ApplyStandardFormatting

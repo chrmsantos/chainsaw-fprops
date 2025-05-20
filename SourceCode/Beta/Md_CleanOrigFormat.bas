@@ -11,7 +11,7 @@ Public Sub Main_COF(doc As Document)
     ' Cleaning format steps
     ResetBasicFormatting doc ' Reset basic formatting
     RemoveAllWatermarks doc ' Remove watermarks
-    RemoveBlankLines doc ' Remove blank lines
+    RemoveLeadingBlankLines doc ' Remove leading blank lines
     CleanDocumentSpacing doc ' Clean up document spacing
     RemoveExtraPageBreaks doc ' Remove extra page breaks
 
@@ -172,25 +172,6 @@ ErrorHandler:
     HandleError "CleanDocumentSpacing"
 End Sub
 
-'================================================================================
-' RemoveBlankLines
-' Purpose: Removes all blank lines (empty paragraphs) from the document.
-'================================================================================
-Private Sub RemoveBlankLines(doc As Document)
-    On Error GoTo ErrorHandler
-
-    Dim i As Long
-    For i = doc.Paragraphs.Count To 1 Step -1
-        If Len(Trim(doc.Paragraphs(i).Range.Text)) = 0 Then
-            doc.Paragraphs(i).Range.Delete
-        End If
-    Next i
-
-    Exit Sub
-
-ErrorHandler:
-    HandleError "RemoveBlankLines"
-End Sub
 
 '--------------------------------------------------------------------------------
 ' SUBROTINA: RemoveExtraPageBreaks

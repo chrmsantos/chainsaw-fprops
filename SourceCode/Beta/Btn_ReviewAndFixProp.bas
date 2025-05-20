@@ -19,6 +19,13 @@ Public Sub Main_PR()
     Dim doc As Document ' Variable to hold the active document
     Set doc = ActiveDocument
 
+    ' Otimização de desempenho: desabilita atualizações de tela e alertas
+    With Application
+        .ScreenUpdating = False
+        .DisplayAlerts = False
+        .StatusBar = "Formatando documento..."
+    End With
+
     ' === AJUSTA O ZOOM PARA 110% ===
     On Error Resume Next
     ActiveWindow.View.Zoom.Percentage = 110
@@ -37,14 +44,7 @@ Public Sub Main_PR()
                vbExclamation, "Documento Protegido"
         Exit Sub
     End If
-    
-    ' Optimize performance by disabling screen updates and alerts
-    With Application
-        .ScreenUpdating = False
-        .DisplayAlerts = False
-        .StatusBar = "Formatting document..."
-    End With
-    
+      
     ' Limpa os metadados do documento
     ClearDocumentMetadata doc ' Clear document metadata
 
@@ -59,13 +59,6 @@ Public Sub Main_PR()
     On Error Resume Next
     doc.SpellingAndGrammar
     On Error GoTo ErrorHandler
-
-    ' Restore application state
-    With Application
-        .ScreenUpdating = True
-        .DisplayAlerts = True
-        .StatusBar = False
-    End With
     
     ' Mensagem de conclusão
     Dim docPath As String: docPath = doc.FullName
