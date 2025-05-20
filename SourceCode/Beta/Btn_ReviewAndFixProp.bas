@@ -1,31 +1,3 @@
-Option Explicit
-
-'================================================================================
-' CONSTANTS
-'================================================================================
-
-' Constants for Word operations
-Private Const wdFindContinue As Long = 1 ' Continue search after the first match
-Private Const wdReplaceOne As Long = 1 ' Replace only one occurrence
-Private Const wdLineSpaceSingle As Long = 0 ' Single line spacing
-Private Const STANDARD_FONT As String = "Arial" ' Standard font for the document
-Private Const STANDARD_FONT_SIZE As Long = 12 ' Standard font size
-Private Const LINE_SPACING As Long = 12 ' Line spacing in points
-
-' Margin constants in centimeters
-Private Const TOP_MARGIN_CM As Double = 4.5 ' Top margin in cm
-Private Const BOTTOM_MARGIN_CM As Double = 2# ' Bottom margin in cm
-Private Const LEFT_MARGIN_CM As Double = 3# ' Left margin in cm
-Private Const RIGHT_MARGIN_CM As Double = 3# ' Right margin in cm
-Private Const HEADER_DISTANCE_CM As Double = 0.7 ' Distance from header to content in cm
-Private Const FOOTER_DISTANCE_CM As Double = 0.7 ' Distance from footer to content in cm
-
-' Header image constants
-Private Const HEADER_IMAGE_RELATIVE_PATH As String = "\RevisorDeProposituras\Personalizations\DefaultHeader.png" ' Relative path to the header image
-Private Const HEADER_IMAGE_MAX_WIDTH_CM As Single = 17 ' Maximum width of the header image in cm
-Private Const HEADER_IMAGE_TOP_MARGIN_CM As Single = 0.27 ' Top margin for the header image in cm
-Private Const HEADER_IMAGE_HEIGHT_RATIO As Single = 0.21 ' Height-to-width ratio for the header image
-
 '================================================================================
 ' MAIN PROCEDURE: Main_PR
 '================================================================================
@@ -83,6 +55,11 @@ Public Sub Main_PR()
     ' Calling the text replacement subroutine
     Main_BNATF doc ' Call the text replacement module
 
+    ' === ORTOGRAFIA E GRAMÁTICA ===
+    On Error Resume Next
+    doc.SpellingAndGrammar
+    On Error GoTo ErrorHandler
+
     ' Restore application state
     With Application
         .ScreenUpdating = True
@@ -100,13 +77,22 @@ Public Sub Main_PR()
     
 ErrorHandler:
     ' Handle errors and restore application state
-    HandleError "Main_PR"
     With Application
         .ScreenUpdating = True
         .DisplayAlerts = True
         .StatusBar = False
     End With
     Set doc = Nothing
+End Sub
+
+'--------------------------------------------------------------------------------
+' SUBROTINA: ShowCompletionMessage
+' Exibe uma mensagem de conclusão com informações sobre o backup e o processamento.
+'--------------------------------------------------------------------------------
+Private Sub ShowCompletionMessage(backupPath As String, docPath As String)
+    MsgBox "Retificação concluída com sucesso!" & vbCrLf & vbCrLf & _
+           "Backup criado em: " & backupPath & vbCrLf & _
+           vbInformation, "Retificação Completa"
 End Sub
 
 '================================================================================
@@ -129,7 +115,7 @@ Private Function IsDocumentValid() As Boolean
     End If
     
     ' Check if the document contains any text
-    If Len(Trim(ActiveDocument.Content.text)) = 0 Then
+    If Len(Trim(ActiveDocument.Content.Text)) = 0 Then
         MsgBox "The document contains no text to format.", _
                vbExclamation, "Empty Document"
         Exit Function
@@ -159,15 +145,4 @@ Private Sub ClearDocumentMetadata(doc As Document)
         prop.Delete
     Next prop
 End Sub
-
-'--------------------------------------------------------------------------------
-' SUBROTINA: ShowCompletionMessage
-' Exibe uma mensagem de conclusão com informações sobre o backup e o processamento.
-'--------------------------------------------------------------------------------
-Private Sub ShowCompletionMessage(backupPath As String, docPath As String, editCount As Integer, executionTime As Double)
-    MsgBox "Retificação concluída com sucesso!" & vbCrLf & vbCrLf & _
-           "Backup criado em: " & backupPath & vbCrLf & _
-           vbInformation, "Retificação Completa"
-End Sub
-
 

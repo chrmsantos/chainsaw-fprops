@@ -1,5 +1,43 @@
+Option Explicit
+
+'================================================================================
+' CONSTANTS
+'================================================================================
+
+' Constants for Word operations
+Private Const wdFindContinue As Long = 1 ' Continue search after the first match
+Private Const wdReplaceOne As Long = 1 ' Replace only one occurrence
+Private Const wdLineSpaceSingle As Long = 0 ' Single line spacing
+Private Const STANDARD_FONT As String = "Arial" ' Standard font for the document
+Private Const STANDARD_FONT_SIZE As Long = 12 ' Standard font size
+Private Const LINE_SPACING As Long = 12 ' Line spacing in points
+
+' Margin constants in centimeters
+Private Const TOP_MARGIN_CM As Double = 4.5 ' Top margin in cm
+Private Const BOTTOM_MARGIN_CM As Double = 2   ' Bottom margin in cm
+Private Const LEFT_MARGIN_CM As Double = 3     ' Left margin in cm
+Private Const RIGHT_MARGIN_CM As Double = 3    ' Right margin in cm
+Private Const HEADER_DISTANCE_CM As Double = 0.7 ' Distance from header to content in cm
+Private Const FOOTER_DISTANCE_CM As Double = 0.7 ' Distance from footer to content in cm
+
+' Header image constants
+Private Const HEADER_IMAGE_RELATIVE_PATH As String = "\RevisorDeProposituras\Personalizations\DefaultHeader.png" ' Relative path to the header image
+Private Const HEADER_IMAGE_MAX_WIDTH_CM As Double = 17 ' Maximum width of the header image in cm
+Private Const HEADER_IMAGE_TOP_MARGIN_CM As Double = 0.27 ' Top margin for the header image in cm
+Private Const HEADER_IMAGE_HEIGHT_RATIO As Double = 0.21 ' Height-to-width ratio for the header image
+
+'================================================================================
+' Main module for formatting
+'================================================================================
 Public Sub Main_SDF(doc As Document)
     On Error GoTo ErrorHandler
+
+    ' Otimização de desempenho: desabilita atualizações de tela e alertas
+    With Application
+        .ScreenUpdating = False
+        .DisplayAlerts = False
+        .StatusBar = "Formatando documento..."
+    End With
 
     ' Setting format steps
     ApplyStandardFormatting doc ' Apply standard formatting
@@ -7,9 +45,22 @@ Public Sub Main_SDF(doc As Document)
     InsertStandardHeaderImage doc ' Insert standard header image
     FormatSpecificLines doc ' Format specific lines
 
+    ' Restaura o estado da aplicação
+    With Application
+        .ScreenUpdating = True
+        .DisplayAlerts = True
+        .StatusBar = False
+    End With
+
     Exit Sub
 
 ErrorHandler:
+    ' Garante restauração do estado mesmo em caso de erro
+    With Application
+        .ScreenUpdating = True
+        .DisplayAlerts = True
+        .StatusBar = False
+    End With
     HandleError "Main_SDF"
 End Sub
 
@@ -20,17 +71,17 @@ End Sub
 '================================================================================
 Private Sub HandleError(procedureName As String)
     Dim errMsg As String ' Variable to hold the error message
-    
+
     ' Build the error message
     errMsg = "Erro na sub-rotina: " & procedureName & vbCrLf & _
              "Erro #" & Err.Number & ": " & Err.Description
-    
+
     ' Display the error message to the user
     MsgBox errMsg, vbCritical, "Erro de Formatação"
-    
+
     ' Log the error message to the debug console
     Debug.Print errMsg
-    
+
     ' Clear the error
     Err.Clear
 End Sub
@@ -39,7 +90,7 @@ End Sub
 ' CentimetersToPoints
 ' Purpose: Converts a value in centimeters to points.
 '================================================================================
-Private Function CentimetersToPoints(cm As Double) As Single
+Private Function CentimetersToPoints(ByVal cm As Double) As Single
     CentimetersToPoints = Application.CentimetersToPoints(cm)
 End Function
 
@@ -50,7 +101,7 @@ End Function
 '================================================================================
 Private Sub ApplyStandardFormatting(doc As Document)
     On Error GoTo ErrorHandler ' Enable error handling
-    
+
     ' Verifica se o documento está protegido
     If doc.ProtectionType <> wdNoProtection Then
         MsgBox "O documento está protegido. Por favor, desproteja-o antes de continuar.", _
@@ -67,7 +118,7 @@ Private Sub ApplyStandardFormatting(doc As Document)
         .HeaderDistance = CentimetersToPoints(HEADER_DISTANCE_CM)
         .FooterDistance = CentimetersToPoints(FOOTER_DISTANCE_CM)
     End With
-    
+
     ' Apply font formatting to the entire document content
     With doc.Content.Font
         .Name = STANDARD_FONT
@@ -79,11 +130,11 @@ Private Sub ApplyStandardFormatting(doc As Document)
 
     ' Apply paragraph formatting to the entire document
     With doc.Content.ParagraphFormat
-        .SpaceAfter = 12 ' Add 12 points of space after each paragraph
-        .LineSpacingRule = wdLineSpaceMultiple ' Set line spacing rule to multiple
-        .LineSpacing = 1.15 * 12 ' Set line spacing to 1.15
-        .Alignment = wdAlignParagraphJustify ' Justify alignment
-        .FirstLineIndent = CentimetersToPoints(2.5) ' Set first line indent to 2.5 cm
+        .SpaceAfter = 12
+        .LineSpacingRule = wdLineSpaceMultiple
+        .LineSpacing = 1.15 * 12
+        .Alignment = wdAlignParagraphJustify
+        .FirstLineIndent = CentimetersToPoints(2.5)
     End With
 
     ' Format the first paragraph of the document
@@ -91,12 +142,12 @@ Private Sub ApplyStandardFormatting(doc As Document)
         Dim firstPara As Paragraph
         Set firstPara = doc.Paragraphs(1)
         With firstPara.Range
-            .Font.Bold = True ' Apply bold
-            .Font.AllCaps = True ' Convert text to uppercase
-            .ParagraphFormat.Alignment = wdAlignParagraphCenter ' Center alignment
-            .ParagraphFormat.LeftIndent = 0 ' Remove left indent
-            .ParagraphFormat.RightIndent = 0 ' Remove right indent
-            .ParagraphFormat.FirstLineIndent = 0 ' Remove first line indent
+            .Font.Bold = True
+            .Font.AllCaps = True
+            .ParagraphFormat.Alignment = wdAlignParagraphCenter
+            .ParagraphFormat.LeftIndent = 0
+            .ParagraphFormat.RightIndent = 0
+            .ParagraphFormat.FirstLineIndent = 0
         End With
     End If
 
@@ -105,9 +156,9 @@ Private Sub ApplyStandardFormatting(doc As Document)
         Dim secondPara As Paragraph
         Set secondPara = doc.Paragraphs(2)
         With secondPara.Range.ParagraphFormat
-            .LeftIndent = 0 ' Remove any left indent
-            .FirstLineIndent = CentimetersToPoints(9) ' Set first line indent to 9 cm
-            .RightIndent = 0 ' Ensure no right indent
+            .LeftIndent = 0
+            .FirstLineIndent = CentimetersToPoints(9)
+            .RightIndent = 0
         End With
     End If
 
@@ -127,7 +178,7 @@ Private Sub ApplyStandardFormatting(doc As Document)
                 End With
             End If
         Next hdrFtr
-        
+
         ' Format footers
         For Each hdrFtr In sec.Footers
             If Len(Trim(hdrFtr.Range.Text)) > 0 Then
@@ -141,11 +192,10 @@ Private Sub ApplyStandardFormatting(doc As Document)
             End If
         Next hdrFtr
     Next sec
-    
-    Exit Sub ' Exit the function
-    
+
+    Exit Sub
+
 ErrorHandler:
-    ' Handle errors
     HandleError "ApplyStandardFormatting"
 End Sub
 
@@ -154,41 +204,31 @@ End Sub
 ' Purpose: Inserts a standard header image into the document's headers.
 '================================================================================
 Private Sub InsertStandardHeaderImage(doc As Document)
-    On Error GoTo ErrorHandler ' Enable error handling
-    
-    Dim sec As Section ' Variable to hold each section
-    Dim header As HeaderFooter ' Variable to hold the primary header
-    Dim imgFile As String ' Path to the header image
-    Dim username As String ' Current username
-    Dim imgWidth As Single ' Width of the image in points
-    Dim imgHeight As Single ' Height of the image in points
-    
-    ' Get the current username from the environment variable
+    On Error GoTo ErrorHandler
+
+    Dim sec As Section
+    Dim header As HeaderFooter
+    Dim imgFile As String
+    Dim username As String
+    Dim imgWidth As Single
+    Dim imgHeight As Single
+
     username = Environ("USERNAME")
-    
-    ' Build the full path to the header image
     imgFile = "C:\Users\" & username & HEADER_IMAGE_RELATIVE_PATH
-    
-    ' Check if the image file exists
+
     If Dir(imgFile) = "" Then
         MsgBox "Header image not found at: " & vbCrLf & imgFile, vbExclamation, "Image Missing"
         Exit Sub
     End If
-    
-    ' Calculate proportional dimensions in points
+
     imgWidth = CentimetersToPoints(HEADER_IMAGE_MAX_WIDTH_CM)
     imgHeight = imgWidth * HEADER_IMAGE_HEIGHT_RATIO
-    
-    ' Loop through all sections and insert the header image
+
     For Each sec In doc.Sections
-        ' Modify the primary header
         Set header = sec.Headers(wdHeaderFooterPrimary)
-        
-        ' Clear existing header content
         header.LinkToPrevious = False
         header.Range.Delete
-        
-        ' Insert and format the image with proportional sizing
+
         With header.Shapes.AddPicture( _
             fileName:=imgFile, _
             LinkToFile:=False, _
@@ -197,20 +237,19 @@ Private Sub InsertStandardHeaderImage(doc As Document)
             Top:=0, _
             Width:=imgWidth, _
             Height:=imgHeight)
-            
+
             .WrapFormat.Type = wdWrapTopBottom
             .RelativeHorizontalPosition = wdRelativeHorizontalPositionPage
             .RelativeVerticalPosition = wdRelativeVerticalPositionPage
             .Left = wdShapeCenter
             .Top = CentimetersToPoints(HEADER_IMAGE_TOP_MARGIN_CM)
-            .LockAspectRatio = msoTrue ' Maintain aspect ratio
+            .LockAspectRatio = msoTrue
         End With
     Next sec
-    
-    Exit Sub ' Exit the function
-    
+
+    Exit Sub
+
 ErrorHandler:
-    ' Handle errors
     HandleError "InsertStandardHeaderImage"
 End Sub
 
@@ -234,7 +273,6 @@ Private Sub EnsureBlankLineBelowTextParagraphs(doc As Document)
                 Dim nextParaText As String
                 nextParaText = Trim(doc.Paragraphs(i + 1).Range.Text)
                 If Len(nextParaText) > 0 Then
-                    ' Insere linha em branco somente se o próximo não for em branco
                     doc.Paragraphs(i).Range.InsertAfter vbCr
                 End If
             End If
@@ -259,7 +297,7 @@ Private Sub FormatSpecificLines(doc As Document)
     Dim paraIndex As Integer
     Dim maxParagraphs As Integer
 
-    maxParagraphs = 1000 ' Limite de segurança
+    maxParagraphs = 1000
 
     paraIndex = 1
     For Each para In doc.Paragraphs
@@ -291,7 +329,7 @@ Private Sub FormatSpecificLines(doc As Document)
             End With
         End If
 
-        ' Formata a linha com "anexo" ou "anexos" (apenas se for a palavra isolada)
+        ' Formata a linha com "anexo" ou "anexos"
         If LCase(paraText) = "anexo" Or LCase(paraText) = "anexos" Then
             With para.Range
                 .Font.Bold = True
@@ -320,10 +358,9 @@ Private Function RemoveExtraPageBreaks(doc As Document) As Integer
 
     Dim editCount As Integer: editCount = 0
 
-    ' Remove quebras de página extras
     With doc.Content.Find
-        .Text = "^m^m" ' Duas quebras de página consecutivas
-        .Replacement.Text = "^m" ' Uma quebra de página
+        .Text = "^m^m"
+        .Replacement.Text = "^m"
         .Forward = True
         .Wrap = wdFindContinue
         .MatchWildcards = False

@@ -1,18 +1,37 @@
-Public Sub Main_SDF(doc As Document)
+Public Sub Main_COF(doc As Document)
     On Error GoTo ErrorHandler
+
+    ' Otimização de desempenho: desabilita atualizações de tela e alertas
+    With Application
+        .ScreenUpdating = False
+        .DisplayAlerts = False
+        .StatusBar = "Limpando formatação do documento..."
+    End With
 
     ' Cleaning format steps
     ResetBasicFormatting doc ' Reset basic formatting
     RemoveAllWatermarks doc ' Remove watermarks
     RemoveBlankLines doc ' Remove blank lines
-    RemoveLeadingBlankLines doc ' Remove leading blank lines
     CleanDocumentSpacing doc ' Clean up document spacing
     RemoveExtraPageBreaks doc ' Remove extra page breaks
+
+    ' Restaura o estado da aplicação
+    With Application
+        .ScreenUpdating = True
+        .DisplayAlerts = True
+        .StatusBar = False
+    End With
 
     Exit Sub
 
 ErrorHandler:
-    HandleError "Main_SDF"
+    ' Garante restauração do estado mesmo em caso de erro
+    With Application
+        .ScreenUpdating = True
+        .DisplayAlerts = True
+        .StatusBar = False
+    End With
+    HandleError "Main_COF"
 End Sub
 
 '================================================================================
