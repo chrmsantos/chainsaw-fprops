@@ -54,11 +54,6 @@ Public Sub Main_PR()
     
     ' Calling the text replacement subroutine
     Main_BNATF doc ' Call the text replacement module
-
-    ' === ORTOGRAFIA E GRAMÁTICA ===
-    On Error Resume Next
-    doc.SpellingAndGrammar
-    On Error GoTo ErrorHandler
     
     ' Mensagem de conclusão
     Dim docPath As String: docPath = doc.FullName
@@ -76,6 +71,12 @@ ErrorHandler:
         .StatusBar = False
     End With
     Set doc = Nothing
+
+    ' === ORTOGRAFIA E GRAMÁTICA ===
+    On Error Resume Next
+    doc.SpellingAndGrammar
+    On Error GoTo ErrorHandler
+
 End Sub
 
 '--------------------------------------------------------------------------------
