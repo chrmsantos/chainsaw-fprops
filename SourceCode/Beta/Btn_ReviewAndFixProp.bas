@@ -27,12 +27,12 @@ Private Const HEADER_IMAGE_TOP_MARGIN_CM As Single = 0.27 ' Top margin for the h
 Private Const HEADER_IMAGE_HEIGHT_RATIO As Single = 0.21 ' Height-to-width ratio for the header image
 
 '================================================================================
-' MAIN PROCEDURE: Main_PropReview
+' MAIN PROCEDURE: Main_PR
 '================================================================================
 ' Purpose: Orchestrates the document formatting process by calling various helper
 ' functions to apply standard formatting, clean up spacing, and insert headers.
 '================================================================================
-Public Sub Main_PropReview()
+Public Sub Main_PR()
     On Error GoTo ErrorHandler ' Enable error handling
     
     ' Verifica se a versão do Word é 2007 ou superior
@@ -76,8 +76,9 @@ Public Sub Main_PropReview()
     ' Limpa os metadados do documento
     ClearDocumentMetadata doc ' Clear document metadata
 
-    ' Formatting
-    Main_Formatting doc ' Call the formatting module
+    ' Formatting the document
+    Main_COF doc ' Call the format cleaner module
+    Main_SDF doc ' Call the set default format module
     
     ' Calling the text replacement subroutine
     Main_BNATF doc ' Call the text replacement module
@@ -99,7 +100,7 @@ Public Sub Main_PropReview()
     
 ErrorHandler:
     ' Handle errors and restore application state
-    HandleError "Main_PropReview"
+    HandleError "Main_PR"
     With Application
         .ScreenUpdating = True
         .DisplayAlerts = True

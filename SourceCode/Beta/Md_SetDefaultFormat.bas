@@ -1,154 +1,47 @@
-    Public Sub Main_Formatting(doc As Document)
-    ' Cleaning format steps
-    ResetBasicFormatting doc ' Reset basic formatting
-    RemoveAllWatermarks doc ' Remove watermarks
-    RemoveBlankLines doc ' Remove blank lines
-    EnsureBlankLineBelowTextParagraphs doc ' Ensure blank line below text paragraphs
-    RemoveLeadingBlankLines doc ' Remove leading blank lines
-    CleanDocumentSpacing doc ' Clean up document spacing
-    RemoveExtraPageBreaks doc ' Remove extra page breaks
-    ' Setting format steps
-    ApplyStandardFormatting doc ' Apply standard formatting
-    InsertStandardHeaderImage doc ' Insert standard header image
-    FormatSpecificLines doc ' Format specific lines
-    End Sub
-
-
-'================================================================================
-' ResetBasicFormatting
-' Purpose: Resets all direct formatting in the document to its default state.
-'================================================================================
-Private Sub ResetBasicFormatting(doc As Document)
-    On Error GoTo ErrorHandler ' Enable error handling
-    
-    ' Reset all direct formatting
-    doc.Content.Font.Reset
-    doc.Content.ParagraphFormat.Reset
-    
-    Exit Sub ' Exit the function
-    
-ErrorHandler:
-    ' Handle errors
-    HandleError "ResetBasicFormatting"
-End Sub
-
-'================================================================================
-' RemoveAllWatermarks
-' Purpose: Removes all watermarks from the document by deleting shapes in headers.
-'================================================================================
-Private Sub RemoveAllWatermarks(doc As Document)
-    On Error GoTo ErrorHandler ' Enable error handling
-    
-    Dim sec As section ' Variable to hold each section
-    Dim hdr As HeaderFooter ' Variable to hold each header/footer
-    Dim shp As shape ' Variable to hold each shape
-    
-    ' Loop through all sections and headers
-    For Each sec In doc.Sections
-        For Each hdr In sec.Headers
-            ' Remove all shapes in headers
-            For Each shp In hdr.Shapes
-                shp.Delete ' Delete the shape
-            Next shp
-        Next hdr
-    Next sec
-    
-    Exit Sub ' Exit the function
-    
-ErrorHandler:
-    ' Handle errors
-    HandleError "RemoveAllWatermarks"
-End Sub
-
-'================================================================================
-' RemoveLeadingBlankLines
-' Purpose: Removes blank paragraphs at the beginning of the document.
-'================================================================================
-Private Sub RemoveLeadingBlankLines(doc As Document)
-    On Error GoTo ErrorHandler ' Enable error handling
-    
-    Dim firstPara As Paragraph ' Variable to hold the first paragraph
-    
-    ' Check if the document contains any paragraphs
-    If doc.Paragraphs.Count = 0 Then Exit Sub ' Exit if no paragraphs exist
-    
-    ' Loop through and remove blank paragraphs at the beginning
-    Set firstPara = doc.Paragraphs(1)
-    Do While Len(Trim(firstPara.Range.Text)) = 0 ' Check if the paragraph is blank
-        firstPara.Range.Delete ' Delete the blank paragraph
-        If doc.Paragraphs.Count = 0 Then Exit Do ' Exit if no more paragraphs exist
-        Set firstPara = doc.Paragraphs(1) ' Update the first paragraph
-    Loop
-    
-    Exit Sub ' Exit the function
-    
-ErrorHandler:
-    ' Handle errors
-    HandleError "RemoveLeadingBlankLines"
-End Sub
-
-'================================================================================
-' CleanDocumentSpacing
-' Purpose: Cleans up unnecessary spaces and paragraph breaks in the document.
-'================================================================================
-Private Sub CleanDocumentSpacing(doc As Document)
-    On Error GoTo ErrorHandler ' Enable error handling
-    
-    Dim searchRange As Range ' Variable to hold the search range
-    
-    ' Check if the document is protected
-    If doc.ProtectionType <> wdNoProtection Then
-        MsgBox "Document is protected. Please unprotect it before formatting.", _
-               vbExclamation, "Document Protected"
-        Exit Sub
-    End If
-    
-    Set searchRange = doc.Content ' Set the search range to the entire document content
-    
-    ' Replace multiple spaces with a single space
-    With searchRange.Find
-        .ClearFormatting
-        .text = "  " ' Two spaces
-        .Replacement.text = " " ' Single space
-        .Forward = True
-        .Wrap = wdFindContinue
-        .MatchWildcards = False
-        .Execute Replace:=wdReplaceAll
-    End With
-    
-    ' Replace multiple paragraph breaks with a single break
-    With searchRange.Find
-        .text = "^p^p" ' Two paragraph marks
-        .Replacement.text = "^p" ' Single paragraph mark
-        .Execute Replace:=wdReplaceAll
-    End With
-    
-    Exit Sub ' Exit the function
-    
-ErrorHandler:
-    ' Handle errors
-    HandleError "CleanDocumentSpacing"
-End Sub
-
-'================================================================================
-' RemoveBlankLines
-' Purpose: Removes all blank lines (empty paragraphs) from the document.
-'================================================================================
-Private Sub RemoveBlankLines(doc As Document)
+Public Sub Main_SDF(doc As Document)
     On Error GoTo ErrorHandler
 
-    Dim i As Long
-    For i = doc.Paragraphs.Count To 1 Step -1
-        If Len(Trim(doc.Paragraphs(i).Range.Text)) = 0 Then
-            doc.Paragraphs(i).Range.Delete
-        End If
-    Next i
+    ' Setting format steps
+    ApplyStandardFormatting doc ' Apply standard formatting
+    EnsureBlankLineBelowTextParagraphs doc ' Ensure blank line below text paragraphs
+    InsertStandardHeaderImage doc ' Insert standard header image
+    FormatSpecificLines doc ' Format specific lines
 
     Exit Sub
 
 ErrorHandler:
-    HandleError "RemoveBlankLines"
+    HandleError "Main_SDF"
 End Sub
+
+'================================================================================
+' HandleError
+' Purpose: Handles errors by displaying an error message and logging it to the
+' debug console.
+'================================================================================
+Private Sub HandleError(procedureName As String)
+    Dim errMsg As String ' Variable to hold the error message
+    
+    ' Build the error message
+    errMsg = "Erro na sub-rotina: " & procedureName & vbCrLf & _
+             "Erro #" & Err.Number & ": " & Err.Description
+    
+    ' Display the error message to the user
+    MsgBox errMsg, vbCritical, "Erro de Formatação"
+    
+    ' Log the error message to the debug console
+    Debug.Print errMsg
+    
+    ' Clear the error
+    Err.Clear
+End Sub
+
+'================================================================================
+' CentimetersToPoints
+' Purpose: Converts a value in centimeters to points.
+'================================================================================
+Private Function CentimetersToPoints(cm As Double) As Single
+    CentimetersToPoints = Application.CentimetersToPoints(cm)
+End Function
 
 '================================================================================
 ' ApplyStandardFormatting
@@ -263,7 +156,7 @@ End Sub
 Private Sub InsertStandardHeaderImage(doc As Document)
     On Error GoTo ErrorHandler ' Enable error handling
     
-    Dim sec As section ' Variable to hold each section
+    Dim sec As Section ' Variable to hold each section
     Dim header As HeaderFooter ' Variable to hold the primary header
     Dim imgFile As String ' Path to the header image
     Dim username As String ' Current username
@@ -354,14 +247,6 @@ ErrorHandler:
     HandleError "EnsureBlankLineBelowTextParagraphs"
 End Sub
 
-'================================================================================
-' CentimetersToPoints
-' Purpose: Converts a value in centimeters to points.
-'================================================================================
-Private Function CentimetersToPoints(cm As Double) As Single
-    CentimetersToPoints = Application.CentimetersToPoints(cm)
-End Function
-
 '--------------------------------------------------------------------------------
 ' SUBROTINA: FormatSpecificLines
 ' Formata a primeira linha, a linha com "justificativa(s)" e a linha com "anexo(s)".
@@ -449,27 +334,4 @@ Private Function RemoveExtraPageBreaks(doc As Document) As Integer
 
     RemoveExtraPageBreaks = editCount
 End Function
-
-'================================================================================
-' HandleError
-' Purpose: Handles errors by displaying an error message and logging it to the
-' debug console.
-'================================================================================
-Private Sub HandleError(procedureName As String)
-    Dim errMsg As String ' Variable to hold the error message
-    
-    ' Build the error message
-    errMsg = "Erro na sub-rotina: " & procedureName & vbCrLf & _
-             "Erro #" & Err.Number & ": " & Err.Description
-    
-    ' Display the error message to the user
-    MsgBox errMsg, vbCritical, "Erro de Formatação"
-    
-    ' Log the error message to the debug console
-    Debug.Print errMsg
-    
-    ' Clear the error
-    Err.Clear
-End Sub
-
 
