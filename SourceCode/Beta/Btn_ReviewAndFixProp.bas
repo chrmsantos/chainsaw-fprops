@@ -72,11 +72,6 @@ ErrorHandler:
     End With
     Set doc = Nothing
 
-    ' === ORTOGRAFIA E GRAMÁTICA ===
-    On Error Resume Next
-    doc.SpellingAndGrammar
-    On Error GoTo ErrorHandler
-
 End Sub
 
 '--------------------------------------------------------------------------------
