@@ -49,7 +49,6 @@ Public Sub Main_PR()
     ClearDocumentMetadata doc ' Clear document metadata
 
     ' Formatting the document
-    Main_COF doc ' Call the format cleaner module
     Main_SDF doc ' Call the set default format module
     
     ' Calling the text replacement subroutine

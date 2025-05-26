@@ -9,7 +9,7 @@ Public Sub Main_BNATF(doc As Document)
     ApplyStandardReplacements doc ' Substituições padrão
     FormatJustificativaLine doc ' Formata a linha "justificativa"
     FormatAnexoLine doc ' Formata a linha "anexo"
-    UpdateDateBeforeSignature doc ' Atualiza a data antes da assinatura
+    'UpdateDateBeforeSignature doc ' Atualiza a data antes da assinatura
 
     Exit Sub
 
@@ -52,10 +52,7 @@ Private Sub ApplyStandardReplacements(doc As Document)
 
     Dim replacements As Variant
     replacements = Array( _
-        Array("[!.\?\n] Rua", "rua", True), _
-        Array("[!.\?\n] Bairro", "bairro", True), _
         Array("[Dd][´`][Oo]este", "d'Oeste", True), _
-        Array("([0-9]@ de [A-Za-z]@ de )([0-9]{4})", Format(Date, "dd 'de' mmmm 'de' yyyy"), True))
 
     Dim i As Integer
     For i = LBound(replacements) To UBound(replacements)
