@@ -7,9 +7,6 @@ Public Sub Main_BNATF(doc As Document)
 
     ReplaceLastWordFirstLine doc ' Substituição da última palavra da primeira linha
     ApplyStandardReplacements doc ' Substituições padrão
-    FormatJustificativaLine doc ' Formata a linha "justificativa"
-    FormatAnexoLine doc ' Formata a linha "anexo"
-    'UpdateDateBeforeSignature doc ' Atualiza a data antes da assinatura
 
     Exit Sub
 
@@ -64,33 +61,6 @@ Private Sub ApplyStandardReplacements(doc As Document)
             .MatchWildcards = replacements(i)(2)
             .Execute Replace:=wdReplaceAll
         End With
-    Next i
-End Sub
-
-'--------------------------------------------------------------------------------
-' SUBROTINA: UpdateDateBeforeSignature
-' Atualiza a linha de data (terceira acima da palavra-chave de assinatura) para a data atual.
-'--------------------------------------------------------------------------------
-Private Sub UpdateDateBeforeSignature(doc As Document)
-    On Error Resume Next
-
-    If doc.Paragraphs.Count < 4 Then Exit Sub
-
-    Dim i As Long
-    Dim paraText As String
-    Dim keywords As Variant
-    keywords = Array("vereador", "presidente", "vice-presidente", "1º secretário", "2º secretário")
-
-    For i = doc.Paragraphs.Count To 4 Step -1
-        paraText = LCase(Trim(doc.Paragraphs(i).Range.Text))
-        Dim k As Integer
-        For k = LBound(keywords) To UBound(keywords)
-            If InStr(paraText, keywords(k)) > 0 Then
-                ' Atualiza a terceira linha acima da palavra-chave
-                doc.Paragraphs(i - 3).Range.Text = Format(Date, "d 'de' mmmm 'de' yyyy") & vbCr
-                Exit Sub
-            End If
-        Next k
     Next i
 End Sub
 
