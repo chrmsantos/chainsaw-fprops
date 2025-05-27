@@ -37,7 +37,11 @@ Public Sub Main_PR()
     ' === BACKUP ANTES DE QUALQUER ALTERAÇÃO ===
     Dim backupPath As String
     backupPath = Main_OPB(doc) ' Md_OrigPropsBackup.CreateBackup deve estar disponível no projeto
-    
+
+    ' === INICIO DE VERIFICAÇÕES E EDIÇÕES NO ARQUIVO ===
+    ' Atualiza o formato do documento original logo após o backup
+    doc.Save
+
     ' Verifica se o documento está protegido
     If doc.ProtectionType <> wdNoProtection Then
         MsgBox "O documento está protegido. Por favor, desproteja-o antes de continuar.", _

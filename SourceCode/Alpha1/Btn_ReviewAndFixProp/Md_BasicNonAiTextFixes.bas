@@ -6,7 +6,7 @@ Public Sub Main_BNATF(doc As Document)
     On Error GoTo ErrorHandler
 
     ReplaceLastWordFirstLine doc ' Substituição da última palavra da primeira linha
-    ApplyStandardReplacements doc ' Substituições padrão
+'    ApplyStandardReplacements doc ' Substituições padrão
 
     Exit Sub
 
@@ -49,7 +49,8 @@ Private Sub ApplyStandardReplacements(doc As Document)
 
     Dim replacements As Variant
     replacements = Array( _
-        Array("[Dd][´`][Oo]este", "d'Oeste", True), _
+        Array("[Dd][´`][Oo]este", "d'Oeste", True) _
+        )
 
     Dim i As Integer
     For i = LBound(replacements) To UBound(replacements)
@@ -110,5 +111,4 @@ Private Sub FormatAnexoLine(doc As Document)
         End If
     Next para
 End Sub
-
 

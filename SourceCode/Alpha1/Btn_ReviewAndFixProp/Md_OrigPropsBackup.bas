@@ -47,10 +47,10 @@ Public Function Main_OPB(doc As Document) As String
     ' Define o caminho completo do backup com verificação final de duplicados 
     backupPath = GetUniqueFileName(backupFolder, docName)
     
-    ' Salva o documento no caminho do backup com tratamento específico para erros de salvamento
+    ' Salva uma cópia do documento no caminho do backup sem alterar o documento ativo
     On Error Resume Next
-    doc.SaveAs FileName:=backupPath, FileFormat:=doc.SaveFormat  ' Preserve original format by default
-    
+    doc.SaveCopyAs FileName:=backupPath
+
 Select Case Err.Number 
 Case 0     ' Success - no error
         
