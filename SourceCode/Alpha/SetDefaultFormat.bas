@@ -13,23 +13,25 @@ Private Const STANDARD_FONT_SIZE As Long = 12 ' Standard font size
 Private Const LINE_SPACING As Long = 12 ' Line spacing in points
 
 ' Margin constants in centimeters
-Private Const TOP_MARGIN_CM As Double = 4.5 ' Top margin in cm
+Private Const TOP_MARGIN_CM As Double = 3.8 ' Top margin in cm
 Private Const BOTTOM_MARGIN_CM As Double = 2   ' Bottom margin in cm
-Private Const LEFT_MARGIN_CM As Double = 3     ' Left margin in cm
-Private Const RIGHT_MARGIN_CM As Double = 3    ' Right margin in cm
-Private Const HEADER_DISTANCE_CM As Double = 0.7 ' Distance from header to content in cm
-Private Const FOOTER_DISTANCE_CM As Double = 0.7 ' Distance from footer to content in cm
+Private Const LEFT_MARGIN_CM As Double = 2.5     ' Left margin in cm
+Private Const RIGHT_MARGIN_CM As Double = 2.5    ' Right margin in cm
+Private Const HEADER_DISTANCE_CM As Double = 0.5 ' Distance from header to content in cm
+Private Const FOOTER_DISTANCE_CM As Double = 0.5 ' Distance from footer to content in cm
 
 ' Header image constants
-Private Const HEADER_IMAGE_RELATIVE_PATH As String = "\RevisorProposituras\Personalizations\DefaultHeader.png" ' Relative path to the header image
-Private Const HEADER_IMAGE_MAX_WIDTH_CM As Double = 17 ' Maximum width of the header image in cm
+Private Const HEADER_IMAGE_RELATIVE_PATH As String = "\SetStandardFormat\Personalization\StandardHeader.png" ' Relative path to the header image
+Private Const HEADER_IMAGE_MAX_WIDTH_CM As Double = 19 ' Maximum width of the header image in cm
 Private Const HEADER_IMAGE_TOP_MARGIN_CM As Double = 0.27 ' Top margin for the header image in cm
-Private Const HEADER_IMAGE_HEIGHT_RATIO As Double = 0.25 ' Height-to-width ratio for the header image
+Private Const HEADER_IMAGE_HEIGHT_RATIO As Double = 0.175 ' Height-to-width ratio for the header image
 
 '================================================================================
 ' Main module for formatting
 '================================================================================
-Public Sub Main_SDF(doc As Document)
+
+' Entry point for macro button: applies formatting to the active document
+Public Sub Main()
     On Error GoTo ErrorHandler
 
     ' Otimização de desempenho: desabilita atualizações de tela e alertas
@@ -39,10 +41,9 @@ Public Sub Main_SDF(doc As Document)
         .StatusBar = "Formatando documento..."
     End With
 
-    ' Setting format steps
-    ApplyStandardFormatting doc ' Apply standard formatting
-    InsertStandardHeaderImage doc ' Insert standard header image
-    'FormatSpecificLines doc ' Format specific lines
+    ' Apply formatting steps to the active document
+    ApplyStandardFormatting ActiveDocument
+    InsertStandardHeaderImage ActiveDocument
 
     ' Restaura o estado da aplicação
     With Application
@@ -60,7 +61,7 @@ ErrorHandler:
         .DisplayAlerts = True
         .StatusBar = False
     End With
-    HandleError "Main_SDF"
+    HandleError "Main"
 End Sub
 
 '================================================================================
@@ -124,6 +125,12 @@ Private Sub ApplyStandardFormatting(doc As Document)
         .Size = STANDARD_FONT_SIZE
     End With
 
+    Exit Sub
+
+ErrorHandler:
+    HandleError "ApplyStandardFormatting"
+End Sub
+
 '================================================================================
 ' InsertStandardHeaderImage
 ' Purpose: Inserts a standard header image into the document's headers.
@@ -138,22 +145,38 @@ Private Sub InsertStandardHeaderImage(doc As Document)
     Dim imgWidth As Single
     Dim imgHeight As Single
 
+    ' Monta o caminho completo da imagem do cabeçalho
     username = Environ("USERNAME")
     imgFile = "C:\Users\" & username & HEADER_IMAGE_RELATIVE_PATH
 
+    ' Verifica se a imagem existe
     If Dir(imgFile) = "" Then
         MsgBox "Header image not found at: " & vbCrLf & imgFile, vbExclamation, "Image Missing"
         Exit Sub
     End If
 
+    ' Calcula as dimensões da imagem
     imgWidth = CentimetersToPoints(HEADER_IMAGE_MAX_WIDTH_CM)
     imgHeight = imgWidth * HEADER_IMAGE_HEIGHT_RATIO
 
+    ' Para cada seção, insere a imagem no cabeçalho
     For Each sec In doc.Sections
         Set header = sec.Headers(wdHeaderFooterPrimary)
         header.LinkToPrevious = False
+
+        ' Remove todo o conteúdo anterior do cabeçalho
         header.Range.Delete
 
+        ' Limpa a formatação da fonte do cabeçalho
+        With header.Range
+            .Font.Reset
+            .Font.Name = STANDARD_FONT
+            .Font.Size = STANDARD_FONT_SIZE
+            .ParagraphFormat.LineSpacingRule = wdLineSpaceMultiple
+            .ParagraphFormat.LineSpacing = 1.5 * 12 ' 1.5 linhas (18 pontos)
+        End With
+
+        ' Adiciona a imagem e ajusta suas propriedades
         With header.Shapes.AddPicture( _
             fileName:=imgFile, _
             LinkToFile:=False, _
@@ -163,7 +186,7 @@ Private Sub InsertStandardHeaderImage(doc As Document)
             Width:=imgWidth, _
             Height:=imgHeight)
 
-            .WrapFormat.Type = wdWrapTopBottom
+            .WrapFormat.Type = wdWrapTight ' Quebra de texto do tipo "justa"
             .RelativeHorizontalPosition = wdRelativeHorizontalPositionPage
             .RelativeVerticalPosition = wdRelativeVerticalPositionPage
             .Left = wdShapeCenter
