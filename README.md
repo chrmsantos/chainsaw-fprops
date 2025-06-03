@@ -1,2 +1,2 @@
 # Set Default Format
-Padronizador de documentos.
+Padronizador de documentos oficiais.
