@@ -14,7 +14,7 @@ Private Const LINE_SPACING As Long = 12 ' Line spacing in points
 
 ' Margin constants in centimeters
 Private Const TOP_MARGIN_CM As Double = 3.8 ' Top margin in cm
-Private Const BOTTOM_MARGIN_CM As Double = 2   ' Bottom margin in cm
+Private Const BOTTOM_MARGIN_CM As Double = 2.5   ' Bottom margin in cm
 Private Const LEFT_MARGIN_CM As Double = 2.5     ' Left margin in cm
 Private Const RIGHT_MARGIN_CM As Double = 2.5    ' Right margin in cm
 Private Const HEADER_DISTANCE_CM As Double = 0.5 ' Distance from header to content in cm
@@ -31,7 +31,7 @@ Private Const HEADER_IMAGE_HEIGHT_RATIO As Double = 0.175 ' Height-to-width rati
 '================================================================================
 
 ' Entry point for macro button: applies formatting to the active document
-Public Sub Main()
+Public Sub Formatter()
     On Error GoTo ErrorHandler
 
     ' Otimização de desempenho: desabilita atualizações de tela e alertas
@@ -200,3 +200,5 @@ Private Sub InsertStandardHeaderImage(doc As Document)
 ErrorHandler:
     HandleError "InsertStandardHeaderImage"
 End Sub
+
+
