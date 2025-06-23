@@ -19,7 +19,7 @@ Sub InserirDocumentoComFormatacao_FormattedText()
 
     ' 3. Abra o documento fonte e obtenha o range do conteúdo
     userName = Environ("USERNAME")
-    caminhoFonte = "C:\Users\" & userName & "\Documents\INDICACAO OFICIAL (rc).docx"
+    caminhoFonte = "C:\Users\" & userName & "\Documents\INDICACAO OFICIAL.docx"
     Set docFonte = Documents.Open(FileName:=caminhoFonte, ReadOnly:=True)
     Set rngOrigem = docFonte.Content
 
