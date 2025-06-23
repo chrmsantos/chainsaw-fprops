@@ -1,8 +1,10 @@
-Sub InserirDocumentoComFormatacao()
+Sub InserirDocumentoComFormatacao_FormattedText()
     Dim docAtivo As Document
     Dim docFonte As Document
     Dim caminhoFonte As String
     Dim rngFinal As Range
+    Dim rngOrigem As Range
+    Dim rngDestino As Range
     Dim userName As String
 
     ' 1. Pule uma linha no final do documento ativo
@@ -15,19 +17,21 @@ Sub InserirDocumentoComFormatacao()
     rngFinal.Collapse Direction:=wdCollapseEnd
     rngFinal.InsertBreak Type:=wdPageBreak
 
-    ' 3. Copie todo o conteúdo e formatação do documento fonte
+    ' 3. Abra o documento fonte e obtenha o range do conteúdo
     userName = Environ("USERNAME")
-    caminhoFonte = "C:\Users\" & userName & "\Documentos\INDICACAO OFICIAL (rc).docx"
+    caminhoFonte = "C:\Users\" & userName & "\Documents\INDICACAO OFICIAL (rc).docx"
     Set docFonte = Documents.Open(FileName:=caminhoFonte, ReadOnly:=True)
-    docFonte.Content.Copy
+    Set rngOrigem = docFonte.Content
 
-    ' 4. Cole o conteúdo formatado após a quebra de página
-    rngFinal.Collapse Direction:=wdCollapseEnd
-    rngFinal.PasteAndFormat (wdFormatOriginalFormatting)
+    ' 4. Insira o conteúdo formatado logo após a quebra de página
+    Set rngDestino = docAtivo.Content
+    rngDestino.Collapse Direction:=wdCollapseEnd
+    rngDestino.FormattedText = rngOrigem.FormattedText
+
     docFonte.Close SaveChanges:=False
 
     ' 5. Execute a subrotina Formatter (já existente no projeto)
-    Call Formatter
+    Call FormatterMain
 
     ' 6. Visualização em duas páginas com zoom de 80%
     With ActiveWindow.View
