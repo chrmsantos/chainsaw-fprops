@@ -1,4 +1,4 @@
-' Attribute VB_Name = "JsonConverter"
+Attribute VB_Name = "JsonConverter"
 ''
 ' VBA-JSON v2.3.1
 ' (c) Tim Hall - https://github.com/VBA-tools/VBA-JSON
@@ -462,7 +462,7 @@ Private Function json_ParseObject(json_String As String, ByRef json_Index As Lon
     Dim json_Key As String
     Dim json_NextChar As String
 
-    Set json_ParseObject = CreateObject("Scripting.Dictionary")
+    Set json_ParseObject = New Dictionary
     json_SkipSpaces json_String, json_Index
     If VBA.Mid$(json_String, json_Index, 1) <> "{" Then
         Err.Raise 10001, "JSONConverter", json_ParseErrorMessage(json_String, json_Index, "Expecting '{'")
@@ -484,13 +484,7 @@ Private Function json_ParseObject(json_String As String, ByRef json_Index As Lon
             If json_NextChar = "[" Or json_NextChar = "{" Then
                 Set json_ParseObject.Item(json_Key) = json_ParseValue(json_String, json_Index)
             Else
-                Dim json_Value As Variant
-                json_Value = json_ParseValue(json_String, json_Index)
-                If json_ParseObject.Exists(json_Key) Then
-                    json_ParseObject(json_Key) = json_Value
-                Else
-                    json_ParseObject.Add json_Key, json_Value
-                End If
+                json_ParseObject.Item(json_Key) = json_ParseValue(json_String, json_Index)
             End If
         Loop
     End If

@@ -1,7 +1,7 @@
 Public Sub Main_SAD()
     ' Abre o link de suporte/documentação no navegador padrão de forma robusta e segura
     Dim supportUrl As String
-    supportUrl = "https://github.com/chrmsantos/RevisorDeProposituras" ' Altere para o link desejado
+    supportUrl = "https://github.com/chrmsantos" ' Altere para o link desejado
 
     On Error Resume Next
 

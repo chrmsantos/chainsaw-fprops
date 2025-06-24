@@ -1,4 +1,4 @@
-Sub InserirDocumentoComFormatacao_FormattedText()
+Sub ModelImporterMain()
     Dim docAtivo As Document
     Dim docFonte As Document
     Dim caminhoFonte As String
@@ -30,10 +30,7 @@ Sub InserirDocumentoComFormatacao_FormattedText()
 
     docFonte.Close SaveChanges:=False
 
-    ' 5. Execute a subrotina Formatter (já existente no projeto)
-    Call FormatterMain
-
-    ' 6. Visualização em duas páginas com zoom de 80%
+    ' 5. Visualização em duas páginas com zoom de 80%
     With ActiveWindow.View
         .Type = wdPrintView
         .Zoom.PageColumns = 2

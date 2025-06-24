@@ -31,7 +31,7 @@ Private Const HEADER_IMAGE_HEIGHT_RATIO As Double = 0.175 ' Height-to-width rati
 '================================================================================
 
 ' Entry point for macro button: applies formatting to the active document
-Public Sub Formatter()
+Public Sub PageFormatterMain()
     On Error GoTo ErrorHandler
 
     ' Otimização de desempenho: desabilita atualizações de tela e alertas
