@@ -1,13 +1,6 @@
-    Sub GlobalPreRunnerMain()
+    Sub GlobalPreReqsCheck()
     ' GlobalPreRunner: Verifica condições iniciais antes de executar outras rotinas
     
-    ' Otimização de desempenho: desabilita atualizações de tela e alertas
-    With Application
-        .ScreenUpdating = False
-        .DisplayAlerts = False
-        .StatusBar = "Formatando documento..."
-    End With
-
     ' Verifica se há um documento ativo
     If ActiveDocument Is Nothing Then
         MsgBox "Nenhum documento ativo encontrado. Por favor, abra um documento para formatar.", _
@@ -44,23 +37,13 @@
             Exit Sub
         End If
     End If
+    
     ' Verifica se o documento está em modo de exibição de layout de impressão
     If ActiveWindow.View.Type <> wdPrintView Then
         MsgBox "Por favor, mude o modo de exibição para 'Layout de Impressão' antes de formatar.", _
                vbExclamation, "Modo de Exibição Inválido"
         Exit Sub
     End If
-
-    
-    
-    
-
-    ' Restaura o estado da aplicação
-    With Application
-        .ScreenUpdating = True
-        .DisplayAlerts = True
-        .StatusBar = False
-    End With
 
     Exit Sub
 
