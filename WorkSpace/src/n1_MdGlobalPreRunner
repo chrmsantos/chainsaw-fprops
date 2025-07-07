@@ -1,3 +1,6 @@
+    Sub GlobalPreRunnerMain()
+    ' GlobalPreRunner: Verifica condições iniciais antes de executar outras rotinas
+    
     ' Otimização de desempenho: desabilita atualizações de tela e alertas
     With Application
         .ScreenUpdating = False

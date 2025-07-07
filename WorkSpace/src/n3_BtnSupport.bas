@@ -1,4 +1,4 @@
-Public Sub Main_SAD()
+Public Sub BtnSupportMain()
     ' Abre o link de suporte/documentação no navegador padrão de forma robusta e segura
     Dim supportUrl As String
     supportUrl = "https://github.com/chrmsantos" ' Altere para o link desejado

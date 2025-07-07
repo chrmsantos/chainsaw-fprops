@@ -1,4 +1,4 @@
-Sub FormatarParagrafoEmenta()
+Sub IndicaoEmentaMain()
     Dim par As Paragraph
     Dim texto As String
 
