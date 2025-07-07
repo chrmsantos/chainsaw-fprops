@@ -1,4 +1,4 @@
-    Sub GlobalPreReqsCheck()
+    Sub GlobalChecking()
     ' GlobalPreRunner: Verifica condições iniciais antes de executar outras rotinas
     
     ' Verifica se há um documento ativo
@@ -6,25 +6,29 @@
         MsgBox "Nenhum documento ativo encontrado. Por favor, abra um documento para formatar.", _
                vbExclamation, "Documento Inativo"
         Exit Sub
-    End If
+    End if
+    
     ' Verifica se o documento está protegido
     If ActiveDocument.ProtectionType <> wdNoProtection Then
         MsgBox "O documento está protegido. Por favor, desproteja-o antes de continuar.", _
                vbExclamation, "Documento Protegido"
         Exit Sub
     End If
+
     ' Verifica se o documento contém conteúdo
     If ActiveDocument.Content.Text = "" Then
         MsgBox "O documento está vazio. Por favor, adicione conteúdo antes de formatar.", _
                vbExclamation, "Documento Vazio"
         Exit Sub
     End If
+
     ' Verifica se o documento é do tipo Word
     If ActiveDocument.Type <> wdTypeDocument Then
         MsgBox "O documento ativo não é um documento do Word. Por favor, abra um documento do Word para formatar.", _
                vbExclamation, "Tipo de Documento Inválido"
         Exit Sub
     End If
+
     ' Verifica se o documento está salvo
     If ActiveDocument.Saved = False Then
         Dim response As VbMsgBoxResult

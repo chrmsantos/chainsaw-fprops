@@ -1,4 +1,4 @@
-Sub IndicaoEmentaMain()
+Sub IndicaoEmenta()
     Dim par As Paragraph
     Dim texto As String
 

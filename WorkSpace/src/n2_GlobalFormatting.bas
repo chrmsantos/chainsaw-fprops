@@ -14,9 +14,9 @@ Private Const LINE_SPACING As Long = 12 ' Line spacing in points
 
 ' Margin constants in centimeters
 Private Const TOP_MARGIN_CM As Double = 4 ' Top margin in cm
-Private Const BOTTOM_MARGIN_CM As Double = 3   ' Bottom margin in cm
-Private Const LEFT_MARGIN_CM As Double = 3     ' Left margin in cm
-Private Const RIGHT_MARGIN_CM As Double = 3    ' Right margin in cm
+Private Const BOTTOM_MARGIN_CM As Double = 3 ' Bottom margin in cm
+Private Const LEFT_MARGIN_CM As Double = 3 ' Left margin in cm
+Private Const RIGHT_MARGIN_CM As Double = 3 ' Right margin in cm
 Private Const HEADER_DISTANCE_CM As Double = 0.5 ' Distance from header to content in cm
 Private Const FOOTER_DISTANCE_CM As Double = 1 ' Distance from footer to content in cm
 
@@ -32,7 +32,7 @@ Private Const HEADER_IMAGE_HEIGHT_RATIO As Double = 0.18 ' Height-to-width ratio
 '================================================================================
 
 ' Entry point for macro button: applies formatting to the active document
-Public Sub PageFormatterMain()
+Public Sub GlobalFormatting()
     On Error GoTo ErrorHandler
 
     ' Otimização de desempenho: desabilita atualizações de tela e alertas
@@ -43,14 +43,14 @@ Public Sub PageFormatterMain()
     End With
 
 
-    ' Apply formatting steps to the active document
+    ' Apply the basic general formatting to the active document
     BasicFormatting ActiveDocument
 
     ' Remove any existing watermark shapes
     RemoveWatermark ActiveDocument
 
     ' Insere a imagem de cabeçalho padrão
-    InsertHeaderImage ActiveDocument
+    InsertHeaderStamp ActiveDocument
     
 
     ' Restaura o estado da aplicação
@@ -171,7 +171,7 @@ End Sub
 ' InsertHeaderImage
 ' Purpose: Inserts a standard header image into the document's headers.
 '================================================================================
-Private Sub InsertHeaderImage(doc As Document)
+Private Sub InsertHeaderStamp(doc As Document)
     On Error GoTo ErrorHandler
 
     Dim sec As Section
@@ -234,7 +234,7 @@ Private Sub InsertHeaderImage(doc As Document)
     Exit Sub
 
 ErrorHandler:
-    HandleError "InsertHeaderImage"
+    HandleError "InsertHeaderStamp"
 End Sub
 
 
