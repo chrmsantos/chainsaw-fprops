@@ -1,7 +1,7 @@
 Public Sub BtnSupport()
-    ' Abre o link de suporte/documentação no navegador padrão de forma robusta e segura
+    ' Abre o link de suporte/documentação no navegador padrão do usuário
     Dim supportUrl As String
-    supportUrl = "https://github.com/chrmsantos" ' Altere para o link desejado
+    supportUrl = "https://github.com/chrmsantos"
 
     On Error Resume Next
 

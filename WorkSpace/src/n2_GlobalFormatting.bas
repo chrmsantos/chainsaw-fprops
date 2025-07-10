@@ -22,7 +22,7 @@ Private Const FOOTER_DISTANCE_CM As Double = 1 ' Distance from footer to content
 
 ' Header image constants
 Private Const HEADER_IMAGE_RELATIVE_PATH As String = "\Documents\OneDrive - Personal\Profissional" _
-    "\c_2025\c_PubGithubRepos\c_LegisToolbox\Workspace\img\DefaultHeader.png" ' Relative path to the header image
+    "\c_2025\c_PubGithubRepos\c_LegisToolbox\Workspace\img\HeaderStamp.png" ' Relative path to the header image
 Private Const HEADER_IMAGE_MAX_WIDTH_CM As Double = 20 ' Maximum width of the header image in cm
 Private Const HEADER_IMAGE_TOP_MARGIN_CM As Double = 0.1 ' Top margin for the header image in cm
 Private Const HEADER_IMAGE_HEIGHT_RATIO As Double = 0.18 ' Height-to-width ratio for the header image

@@ -11,10 +11,10 @@ Public Sub BtnMAIN()
     End With
 
     ' Verificação de pré-requisitos
-    Call GlobalPreReqsCheck
+    Call GlobalChecking
     
     ' Rotina de formatação global
-    Call GlobalFormatterMain
+    Call GlobalFormatter
 
     ' Restaura o estado da aplicação
     With Application
