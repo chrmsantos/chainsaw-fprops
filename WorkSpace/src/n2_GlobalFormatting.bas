@@ -21,8 +21,7 @@ Private Const HEADER_DISTANCE_CM As Double = 0.5 ' Distance from header to conte
 Private Const FOOTER_DISTANCE_CM As Double = 1 ' Distance from footer to content in cm
 
 ' Header image constants
-Private Const HEADER_IMAGE_RELATIVE_PATH As String = "\Documents\OneDrive - Personal\Profissional" _
-    "\c_2025\c_PubGithubRepos\c_LegisToolbox\Workspace\img\HeaderStamp.png" ' Relative path to the header image
+Private Const HEADER_IMAGE_RELATIVE_PATH As String = "\Documents\HeaderStamp.png" ' Relative path to the header image
 Private Const HEADER_IMAGE_MAX_WIDTH_CM As Double = 20 ' Maximum width of the header image in cm
 Private Const HEADER_IMAGE_TOP_MARGIN_CM As Double = 0.1 ' Top margin for the header image in cm
 Private Const HEADER_IMAGE_HEIGHT_RATIO As Double = 0.18 ' Height-to-width ratio for the header image
@@ -105,7 +104,7 @@ End Sub
 ' Purpose: Handles errors by displaying an error message and logging it to the
 ' debug console.
 '================================================================================
-Private Sub HandleError(procedureName As String)
+Public Sub HandleError(procedureName As String)
     Dim errMsg As String ' Variable to hold the error message
 
     ' Build the error message

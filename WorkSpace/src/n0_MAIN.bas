@@ -14,7 +14,7 @@ Public Sub BtnMAIN()
     Call GlobalChecking
     
     ' Rotina de formatação global
-    Call GlobalFormatter
+    Call GlobalFormatting
 
     ' Restaura o estado da aplicação
     With Application
