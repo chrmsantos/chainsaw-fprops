@@ -156,6 +156,7 @@ Private Sub BasicFormatting(doc As Document)
 
     ' Apply font formatting to the entire document content
     With doc.Content.Font
+        .Reset ' Resets any additional font formatting
         .Name = STANDARD_FONT
         .Size = STANDARD_FONT_SIZE
     End With
