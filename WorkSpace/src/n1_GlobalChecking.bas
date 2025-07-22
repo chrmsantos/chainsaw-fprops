@@ -1,62 +1,51 @@
-    Sub GlobalChecking()
-    ' GlobalPreRunner: Verifica condições iniciais antes de executar outras rotinas
-    
-    ' Verifica se há um documento ativo
+'================================================================================
+' GlobalChecking
+' Purpose: Checks initial conditions before running other routines.
+'================================================================================
+Sub GlobalChecking()
+    ' Check if there is an active document
+    ' This prevents errors if the user tries to run formatting without any document open
     If ActiveDocument Is Nothing Then
-        MsgBox "Nenhum documento ativo encontrado. Por favor, abra um documento para formatar.", _
-               vbExclamation, "Documento Inativo"
+        MsgBox "No active document found. Please open a document to format.", _
+               vbExclamation, "Inactive Document"
         Exit Sub
-    End if
-    
-    ' Verifica se o documento está protegido
+    End If
+
+    ' Check if the document is protected
+    ' Formatting routines require the document to be unprotected for changes
     If ActiveDocument.ProtectionType <> wdNoProtection Then
-        MsgBox "O documento está protegido. Por favor, desproteja-o antes de continuar.", _
-               vbExclamation, "Documento Protegido"
+        MsgBox "The document is protected. Please unprotect it before continuing.", _
+               vbExclamation, "Protected Document"
         Exit Sub
     End If
 
-    ' Verifica se o documento contém conteúdo
-    If ActiveDocument.Content.Text = "" Then
-        MsgBox "O documento está vazio. Por favor, adicione conteúdo antes de formatar.", _
-               vbExclamation, "Documento Vazio"
+    ' Check if the document contains any content
+    ' Prevents running formatting on an empty document
+    If Trim(ActiveDocument.Content.Text) = "" Then
+        MsgBox "The document is empty. Please add content before formatting.", _
+               vbExclamation, "Empty Document"
         Exit Sub
     End If
 
-    ' Verifica se o documento é do tipo Word
+    ' Check if the document is a Word document
+    ' Ensures the macro is only run on valid Word documents
     If ActiveDocument.Type <> wdTypeDocument Then
-        MsgBox "O documento ativo não é um documento do Word. Por favor, abra um documento do Word para formatar.", _
-               vbExclamation, "Tipo de Documento Inválido"
+        MsgBox "The active document is not a Word document. Please open a Word document to format.", _
+               vbExclamation, "Invalid Document Type"
         Exit Sub
     End If
 
-    ' Verifica se o documento está salvo
-    If ActiveDocument.Saved = False Then
-        Dim response As VbMsgBoxResult
-        response = MsgBox("O documento não foi salvo. Deseja salvar antes de formatar?", _
-                          vbYesNo + vbQuestion, "Salvar Documento")
-        If response = vbYes Then
-            ActiveDocument.Save
-        Else
-            MsgBox "Por favor, salve o documento antes de continuar.", vbExclamation, "Documento Não Salvo"
-            Exit Sub
-        End If
-    End If
-    
-    ' Verifica se o documento está em modo de exibição de layout de impressão
-    If ActiveWindow.View.Type <> wdPrintView Then
-        MsgBox "Por favor, mude o modo de exibição para 'Layout de Impressão' antes de formatar.", _
-               vbExclamation, "Modo de Exibição Inválido"
-        Exit Sub
-    End If
-
+    ' If all checks pass, exit the subroutine normally
     Exit Sub
 
 ErrorHandler:
-    ' Garante restauração do estado mesmo em caso de erro
+    ' Always restore application state, even if an error occurs
+    ' This prevents the application from remaining in a disabled state after an error
     With Application
         .ScreenUpdating = True
         .DisplayAlerts = True
         .StatusBar = False
     End With
-    HandleError "Main"
+    ' Call the error handler routine to display/log the error
+    HandleError "GlobalChecking"
 End Sub

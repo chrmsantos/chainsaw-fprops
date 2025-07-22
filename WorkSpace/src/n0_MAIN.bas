@@ -1,22 +1,22 @@
-' Módulo exclusivamente de entry point e orquestração do fluxo do botão Padronizar Documento
+' Entry point and orchestration module for the "Standardize Document" button
 
 Public Sub BtnMAIN()
     On Error GoTo ErrHandler
 
-    ' Otimização de desempenho: desabilita atualizações de tela e alertas
+    ' Performance optimization: disable screen updating and alerts during processing
     With Application
         .ScreenUpdating = False
         .DisplayAlerts = False
-        .StatusBar = "Formatando documento..."
+        .StatusBar = "Formatting document..."
     End With
 
-    ' Verificação de pré-requisitos
+    ' Check prerequisites before formatting (active document, protection, etc.)
     Call GlobalChecking
-    
-    ' Rotina de formatação global
+
+    ' Run the global formatting routine (margins, font, header, watermark, etc.)
     Call GlobalFormatting
 
-    ' Restaura o estado da aplicação
+    ' Restore application state after formatting
     With Application
         .ScreenUpdating = True
         .DisplayAlerts = True
@@ -26,7 +26,14 @@ Public Sub BtnMAIN()
     Exit Sub
 
 ErrHandler:
-    MsgBox "Ocorreu um erro ao padronizar o documento:" & vbCrLf & _
-           "Erro " & Err.Number & ": " & Err.Description, vbCritical, "Erro"
+    ' Restore application state in case of error
+    With Application
+        .ScreenUpdating = True
+        .DisplayAlerts = True
+        .StatusBar = False
+    End With
+    ' Show detailed error message to the user
+    MsgBox "An error occurred while standardizing the document:" & vbCrLf & _
+           "Error " & Err.Number & ": " & Err.Description, vbCritical, "Error"
 End Sub
 
