@@ -266,29 +266,28 @@ Private Sub InsertFooterStamp(doc As Document)
 
     Dim sec As Section
     Dim footer As HeaderFooter
-    Dim para As Paragraph
     Dim rng As Range
 
-    ' Loop through all sections in the document
     For Each sec In doc.Sections
         Set footer = sec.Footers(wdHeaderFooterPrimary)
-        footer.LinkToPrevious = False ' Unlink footer from previous section
+        footer.LinkToPrevious = False
 
         ' Clear existing footer content
-        footer.Range.Delete
+        footer.Range.Text = ""
 
-        ' Add a new centered paragraph to the footer
-        Set para = footer.Range.Paragraphs.Add
-        para.Alignment = wdAlignParagraphCenter
+        ' Set range to the footer
+        Set rng = footer.Range
+        rng.ParagraphFormat.Alignment = wdAlignParagraphCenter
 
-        ' Set the range to the new paragraph
-        Set rng = para.Range
-        rng.Collapse Direction:=wdCollapseStart
-
-        ' Insert the page number twice, separated by a hyphen (e.g., "1-1")
+        ' Insert first page number field
         rng.Fields.Add Range:=rng, Type:=wdFieldPage
+
+        ' Move to end and insert hyphen
+        rng.Collapse Direction:=wdCollapseEnd
         rng.InsertAfter "-"
         rng.Collapse Direction:=wdCollapseEnd
+
+        ' Insert second page number field
         rng.Fields.Add Range:=rng, Type:=wdFieldPage
     Next sec
 
