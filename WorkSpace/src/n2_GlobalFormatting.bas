@@ -259,7 +259,7 @@ End Sub
 
 '================================================================================
 ' InsertFooterStamp
-' Purpose: Inserts centered automatic page numbers in the footer in the format "1-1" (where both are the page number).
+' Purpose: Inserts centered automatic page numbers in the footer in the format "1-1" (where both are the page number), with numbers in bold.
 '================================================================================
 Private Sub InsertFooterStamp(doc As Document)
     On Error GoTo ErrorHandler
@@ -267,6 +267,8 @@ Private Sub InsertFooterStamp(doc As Document)
     Dim sec As Section
     Dim footer As HeaderFooter
     Dim rng As Range
+    Dim fld1 As Field
+    Dim fld2 As Field
 
     For Each sec In doc.Sections
         Set footer = sec.Footers(wdHeaderFooterPrimary)
@@ -275,20 +277,22 @@ Private Sub InsertFooterStamp(doc As Document)
         ' Clear existing footer content
         footer.Range.Text = ""
 
-        ' Set range to the footer
+        ' Set range to the footer and center it
         Set rng = footer.Range
         rng.ParagraphFormat.Alignment = wdAlignParagraphCenter
 
-        ' Insert first page number field
-        rng.Fields.Add Range:=rng, Type:=wdFieldPage
+        ' Insert first page number field and make it bold
+        Set fld1 = rng.Fields.Add(Range:=rng, Type:=wdFieldPage)
+        fld1.Result.Font.Bold = True
 
-        ' Move to end and insert hyphen
+        ' Move to end and insert hyphen (not bold)
         rng.Collapse Direction:=wdCollapseEnd
         rng.InsertAfter "-"
         rng.Collapse Direction:=wdCollapseEnd
 
-        ' Insert second page number field
-        rng.Fields.Add Range:=rng, Type:=wdFieldPage
+        ' Insert second page number field and make it bold
+        Set fld2 = rng.Fields.Add(Range:=rng, Type:=wdFieldPage)
+        fld2.Result.Font.Bold = True
     Next sec
 
     Exit Sub
