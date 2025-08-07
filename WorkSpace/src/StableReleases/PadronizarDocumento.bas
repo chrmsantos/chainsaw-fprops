@@ -4,57 +4,121 @@ Option Explicit
 ' CONSTANTS
 '================================================================================
 
-' Constants for Word operations
-Private Const wdFindContinue As Long = 1 ' Continue search after the first match
-Private Const wdReplaceOne As Long = 1 ' Replace only one occurrence
-Private Const wdLineSpaceSingle As Double = 1 ' Standard line spacing (should be Double)
-Private Const STANDARD_FONT As String = "Arial" ' Standard font for the document
-Private Const STANDARD_FONT_SIZE As Long = 12 ' Standard font size
-Private Const LINE_SPACING As Long = 10 ' Line spacing in points
+' Word built-in constants (define if not referenced from Word object library)
+Private Const wdNoProtection As Long = 0
+Private Const wdTypeDocument As Long = 0
+Private Const wdHeaderFooterPrimary As Long = 1
+Private Const wdAlignParagraphCenter As Long = 1
+Private Const wdLineSpace1pt5 As Long = 4
+Private Const wdLineSpaceMultiple As Long = 5
+Private Const wdWrapTight As Long = 1
+Private Const wdRelativeHorizontalPositionPage As Long = 1
+Private Const wdRelativeVerticalPositionPage As Long = 1
+Private Const wdShapeCenter As Long = -999999 ' Center constant for shapes
+Private Const msoTrue As Long = -1
+Private Const msoPicture As Long = 13
+Private Const msoTextEffect As Long = 15
+Private Const wdCollapseEnd As Long = 0
+Private Const wdFieldPage As Long = 33
+
+' Document formatting constants
+Private Const STANDARD_FONT As String = "Arial"
+Private Const STANDARD_FONT_SIZE As Long = 12
+Private Const LINE_SPACING As Long = 10
 
 ' Margin constants in centimeters
-Private Const TOP_MARGIN_CM As Double = 5 ' Top margin in cm
-Private Const BOTTOM_MARGIN_CM As Double = 2 ' Bottom margin in cm
-Private Const LEFT_MARGIN_CM As Double = 3 ' Left margin in cm
-Private Const RIGHT_MARGIN_CM As Double = 3 ' Right margin in cm
-Private Const HEADER_DISTANCE_CM As Double = 0.5 ' Distance from header to content in cm
-Private Const FOOTER_DISTANCE_CM As Double = 0.9 ' Distance from footer to content in cm
+Private Const TOP_MARGIN_CM As Double = 5
+Private Const BOTTOM_MARGIN_CM As Double = 2
+Private Const LEFT_MARGIN_CM As Double = 3
+Private Const RIGHT_MARGIN_CM As Double = 3
+Private Const HEADER_DISTANCE_CM As Double = 0.3
+Private Const FOOTER_DISTANCE_CM As Double = 0.9
 
 ' Header image constants
-Private Const HEADER_IMAGE_RELATIVE_PATH As String = "\Documents\HeaderStamp.png" ' Relative path to the header image
-Private Const HEADER_IMAGE_MAX_WIDTH_CM As Double = 22 ' Maximum width of the header image in cm
-Private Const HEADER_IMAGE_TOP_MARGIN_CM As Double = 0.7 ' Top margin for the header image in cm
-Private Const HEADER_IMAGE_HEIGHT_RATIO As Double = 0.19 ' Height-to-width ratio for the header image
+Private Const HEADER_IMAGE_RELATIVE_PATH As String = "\Documents\HeaderStamp.png"
+Private Const HEADER_IMAGE_MAX_WIDTH_CM As Double = 21
+Private Const HEADER_IMAGE_TOP_MARGIN_CM As Double = 0.7
+Private Const HEADER_IMAGE_HEIGHT_RATIO As Double = 0.19
 
 '================================================================================
-' Main module for formatting
+' Entry point for the "Standardize Document" button
 '================================================================================
+Public Sub BtnMAIN()
+    On Error GoTo ErrHandler
 
-' Entry point for macro button: applies formatting to the active document
-Public Sub GlobalFormatting()
-    ' Set up error handling for the procedure
-    On Error GoTo ErrorHandler
-
-    ' Temporarily disable screen updating and alerts for performance and user experience
     With Application
         .ScreenUpdating = False
         .DisplayAlerts = False
         .StatusBar = "Formatting document..."
     End With
 
-    ' Apply basic formatting (margins, font, etc.)
+    Call GlobalChecking
+    Call GlobalFormatting
+
+    With Application
+        .ScreenUpdating = True
+        .DisplayAlerts = True
+        .StatusBar = False
+    End With
+
+    Exit Sub
+
+ErrHandler:
+    With Application
+        .ScreenUpdating = True
+        .DisplayAlerts = True
+        .StatusBar = False
+    End With
+    MsgBox "An error occurred while standardizing the document:" & vbCrLf & _
+           "Error " & Err.Number & ": " & Err.Description, vbCritical, "Error"
+End Sub
+
+'================================================================================
+' Checks initial conditions before running other routines.
+'================================================================================
+Sub GlobalChecking()
+    On Error GoTo ErrorHandler
+
+    If ActiveDocument Is Nothing Then
+        MsgBox "No active document found. Please open a document to format.", _
+               vbExclamation, "Inactive Document"
+        Exit Sub
+    End If
+
+    If ActiveDocument.Type <> wdTypeDocument Then
+        MsgBox "The active document is not a Word document. Please open a Word document to format.", _
+               vbExclamation, "Invalid Document Type"
+        Exit Sub
+    End If
+
+    Exit Sub
+
+ErrorHandler:
+    With Application
+        .ScreenUpdating = True
+        .DisplayAlerts = True
+        .StatusBar = False
+    End With
+    HandleError "GlobalChecking"
+End Sub
+
+'================================================================================
+' Main formatting routine
+'================================================================================
+Public Sub GlobalFormatting()
+    On Error GoTo ErrorHandler
+
+    With Application
+        .ScreenUpdating = False
+        .DisplayAlerts = False
+        .StatusBar = "Formatting document..."
+    End With
+
     BasicFormatting ActiveDocument
-
-    ' Remove any watermark shapes from all headers in all sections
     RemoveWatermark ActiveDocument
-
-    ' Insert the standard header image in all sections
     InsertHeaderStamp ActiveDocument
-
-    ' Insert the footer stamp (page numbers) in all sections
     InsertFooterStamp ActiveDocument
 
-    ' Restore application state (reenable screen updating and alerts)
     With Application
         .ScreenUpdating = True
         .DisplayAlerts = True
@@ -64,22 +128,18 @@ Public Sub GlobalFormatting()
     Exit Sub
 
 ErrorHandler:
-    ' Always restore application state, even if an error occurs
     With Application
         .ScreenUpdating = True
         .DisplayAlerts = True
         .StatusBar = False
     End With
-    ' Call the error handler subroutine with a label for this procedure
     HandleError "Main"
 End Sub
 
 '================================================================================
-' RemoveWatermark
-' Purpose: Removes watermark shapes from all sections if present.
+' Removes watermark shapes from all sections if present.
 '================================================================================
 Private Sub RemoveWatermark(doc As Document)
-    ' Ignore errors in this routine
     On Error Resume Next
 
     Dim sec As Section
@@ -87,73 +147,47 @@ Private Sub RemoveWatermark(doc As Document)
     Dim shp As Shape
     Dim i As Long
 
-    ' Loop through all sections in the document
     For Each sec In doc.Sections
-        ' Loop through all headers in the section
         For Each header In sec.Headers
-            ' Loop backwards through all shapes in the header (safe for deletion)
             For i = header.Shapes.Count To 1 Step -1
                 Set shp = header.Shapes(i)
-                ' Check if the shape is a picture or text effect
                 If shp.Type = msoPicture Or shp.Type = msoTextEffect Then
-                    ' Check if the shape name contains "Watermark"
                     If InStr(1, shp.Name, "Watermark", vbTextCompare) > 0 Then
-                        shp.Delete ' Delete the watermark shape
+                        shp.Delete
                     End If
                 End If
             Next i
         Next header
     Next sec
 
-    ' Restore normal error handling
     On Error GoTo 0
 End Sub
 
 '================================================================================
-' HandleError
-' Purpose: Handles errors by displaying an error message and logging it to the debug console.
+' Handles errors by displaying an error message and logging it to the debug console.
 '================================================================================
 Public Sub HandleError(procedureName As String)
-    Dim errMsg As String ' Variable to hold the error message
-
-    ' Build a detailed error message with procedure name, error number, and description
+    Dim errMsg As String
     errMsg = "Error in subroutine: " & procedureName & vbCrLf & _
              "Error #" & Err.Number & ": " & Err.Description
-
-    ' Show the error message to the user
     MsgBox errMsg, vbCritical, "Formatting Error"
-
-    ' Output the error message to the Immediate window for debugging
     Debug.Print errMsg
-
-    ' Clear the error object
     Err.Clear
 End Sub
 
 '================================================================================
-' CentimetersToPoints
-' Purpose: Converts a value in centimeters to points.
+' Converts a value in centimeters to points.
 '================================================================================
 Private Function CentimetersToPoints(ByVal cm As Double) As Single
-    ' Use Word's built-in conversion function
     CentimetersToPoints = Application.CentimetersToPoints(cm)
 End Function
 
 '================================================================================
-' BasicFormatting
-' Purpose: Applies standard formatting to the document, including font, margins, and paragraph formatting.
+' Applies standard formatting to the document, including font, margins, and paragraph formatting.
 '================================================================================
 Private Sub BasicFormatting(doc As Document)
-    On Error GoTo ErrorHandler ' Enable error handling
+    On Error GoTo ErrorHandler
 
-    ' Check if the document is protected and cannot be modified
-    If doc.ProtectionType <> wdNoProtection Then
-        MsgBox "The document is protected. Please unprotect it before continuing.", _
-               vbExclamation, "Protected Document"
-        Exit Sub
-    End If
-
-    ' Set page layout and margins using constants and conversion function
     With doc.PageSetup
         .TopMargin = CentimetersToPoints(TOP_MARGIN_CM)
         .BottomMargin = CentimetersToPoints(BOTTOM_MARGIN_CM)
@@ -163,19 +197,17 @@ Private Sub BasicFormatting(doc As Document)
         .FooterDistance = CentimetersToPoints(FOOTER_DISTANCE_CM)
     End With
 
-    ' Apply font formatting to the entire document content
     With doc.Content.Font
         .Name = STANDARD_FONT
         .Size = STANDARD_FONT_SIZE
     End With
 
-    ' Apply automatic hyphenation to the document
-    doc.Hyphenation.AutoHyphenation = True
+    ' Enable automatic hyphenation for the document
+    doc.AutoHyphenation = True
 
-    ' Set paragraph formatting (example: 1.5 line spacing)
     With doc.Content.ParagraphFormat
         .LineSpacingRule = wdLineSpace1pt5
-        .LineSpacing = 18 ' 1.5 lines at 12pt font
+        .LineSpacing = 18
     End With
 
     Exit Sub
@@ -185,8 +217,7 @@ ErrorHandler:
 End Sub
 
 '================================================================================
-' InsertHeaderStamp
-' Purpose: Inserts a standard header image into the document's headers.
+' Inserts a standard header image into the document's headers.
 '================================================================================
 Private Sub InsertHeaderStamp(doc As Document)
     On Error GoTo ErrorHandler
@@ -198,53 +229,42 @@ Private Sub InsertHeaderStamp(doc As Document)
     Dim imgWidth As Single
     Dim imgHeight As Single
 
-    ' Build the full path to the header image using the current user's folder
     username = Environ("USERNAME")
     imgFile = "C:\Users\" & username & HEADER_IMAGE_RELATIVE_PATH
 
-    ' Check if the image file exists
     If Dir(imgFile) = "" Then
         MsgBox "Header image not found at: " & vbCrLf & imgFile, vbExclamation, "Image Missing"
         Exit Sub
     End If
 
-    ' Calculate the image dimensions in points
     imgWidth = CentimetersToPoints(HEADER_IMAGE_MAX_WIDTH_CM)
     imgHeight = imgWidth * HEADER_IMAGE_HEIGHT_RATIO
 
-    ' Loop through all sections and insert the image in the primary header
     For Each sec In doc.Sections
         Set header = sec.Headers(wdHeaderFooterPrimary)
-        header.LinkToPrevious = False ' Unlink header from previous section
-
-        ' Remove all existing content in the header
+        header.LinkToPrevious = False
         header.Range.Delete
 
-        ' Set font and paragraph formatting for the header range
         With header.Range
             .Font.Reset
             .Font.Name = STANDARD_FONT
             .Font.Size = STANDARD_FONT_SIZE
             .ParagraphFormat.LineSpacingRule = wdLineSpaceMultiple
-            .ParagraphFormat.LineSpacing = wdLineSpaceSingle * LINE_SPACING ' 1.5 lines (18 points)
+            .ParagraphFormat.LineSpacing = 18
         End With
 
-        ' Add the image and adjust its properties
         With header.Shapes.AddPicture( _
             fileName:=imgFile, _
             LinkToFile:=False, _
             SaveWithDocument:=True, _
-            Left:=0, _
-            Top:=0, _
+            Left:=wdShapeCenter, _
+            Top:=CentimetersToPoints(HEADER_IMAGE_TOP_MARGIN_CM), _
             Width:=imgWidth, _
             Height:=imgHeight)
-
-            .WrapFormat.Type = wdWrapTight ' Set text wrapping style to "tight"
+            .WrapFormat.Type = wdWrapTight
             .RelativeHorizontalPosition = wdRelativeHorizontalPositionPage
             .RelativeVerticalPosition = wdRelativeVerticalPositionPage
-            .Left = wdShapeCenter ' Center the image horizontally
-            .Top = CentimetersToPoints(HEADER_IMAGE_TOP_MARGIN_CM) ' Set top margin
-            .LockAspectRatio = msoTrue ' Maintain aspect ratio
+            .LockAspectRatio = msoTrue
         End With
     Next sec
 
@@ -255,8 +275,7 @@ ErrorHandler:
 End Sub
 
 '================================================================================
-' InsertFooterStamp
-' Purpose: Inserts centered automatic page numbers in the footer in the format "1-1" (where both are the page number), with numbers in bold.
+' Inserts centered automatic page numbers in the footer in the format "1-1" (both bold).
 '================================================================================
 Private Sub InsertFooterStamp(doc As Document)
     On Error GoTo ErrorHandler
@@ -272,20 +291,13 @@ Private Sub InsertFooterStamp(doc As Document)
         footer.LinkToPrevious = False
         Set rng = footer.Range
 
-        ' Clear existing footer content
         rng.Text = ""
-
-        ' Set the font and size for the footer text
-        With rng.Font
-            .Name = STANDARD_FONT
-            .Size = STANDARD_FONT_SIZE - 3 ' Slightly smaller than the main text
-            .Bold = True
-        End With
-
-        ' Center the footer
         rng.ParagraphFormat.Alignment = wdAlignParagraphCenter
 
-        ' Insert first page number field (bold)
+        ' Insert first page number (bold)
+        rng.Font.Name = STANDARD_FONT
+        rng.Font.Size = STANDARD_FONT_SIZE - 3
+        rng.Font.Bold = True
         Set fld1 = rng.Fields.Add(Range:=rng, Type:=wdFieldPage)
         rng.Collapse Direction:=wdCollapseEnd
 
@@ -294,13 +306,10 @@ Private Sub InsertFooterStamp(doc As Document)
         rng.InsertAfter "-"
         rng.Collapse Direction:=wdCollapseEnd
 
-        ' Insert second page number field (bold)
+        ' Insert second page number (bold)
         rng.Font.Bold = True
         Set fld2 = rng.Fields.Add(Range:=rng, Type:=wdFieldPage)
-
-        ' Align the footer text to the center
         rng.ParagraphFormat.Alignment = wdAlignParagraphCenter
-
     Next sec
 
     Exit Sub
@@ -308,3 +317,4 @@ Private Sub InsertFooterStamp(doc As Document)
 ErrorHandler:
     HandleError "InsertFooterStamp"
 End Sub
+
