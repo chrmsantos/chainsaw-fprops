@@ -7,14 +7,14 @@ Option Explicit
 ' Constants for Word operations
 Private Const wdFindContinue As Long = 1 ' Continue search after the first match
 Private Const wdReplaceOne As Long = 1 ' Replace only one occurrence
-Private Const wdLineSpaceSingle As Double = 1.5 ' Standard line spacing (should be Double)
+Private Const wdLineSpaceSingle As Double = 1 ' Standard line spacing (should be Double)
 Private Const STANDARD_FONT As String = "Arial" ' Standard font for the document
 Private Const STANDARD_FONT_SIZE As Long = 12 ' Standard font size
-Private Const LINE_SPACING As Long = 12 ' Line spacing in points
+Private Const LINE_SPACING As Long = 10 ' Line spacing in points
 
 ' Margin constants in centimeters
 Private Const TOP_MARGIN_CM As Double = 5 ' Top margin in cm
-Private Const BOTTOM_MARGIN_CM As Double = 3 ' Bottom margin in cm
+Private Const BOTTOM_MARGIN_CM As Double = 2 ' Bottom margin in cm
 Private Const LEFT_MARGIN_CM As Double = 3 ' Left margin in cm
 Private Const RIGHT_MARGIN_CM As Double = 3 ' Right margin in cm
 Private Const HEADER_DISTANCE_CM As Double = 0.5 ' Distance from header to content in cm
@@ -176,10 +176,10 @@ Private Sub BasicFormatting(doc As Document)
     End With
 
     ' Optionally, set paragraph formatting (uncomment if needed)
-    'With doc.Content.ParagraphFormat
-    '    .LineSpacingRule = wdLineSpaceMultiple
-    '    .LineSpacing = wdLineSpaceSingle * LINE_SPACING
-    'End With
+    With doc.Content.ParagraphFormat
+        .LineSpacingRule = wdLineSpaceMultiple
+        .LineSpacing = wdLineSpaceSingle * LINE_SPACING
+    End With
 
     Exit Sub
 
@@ -293,6 +293,9 @@ Private Sub InsertFooterStamp(doc As Document)
         ' Insert second page number field and make it bold
         Set fld2 = rng.Fields.Add(Range:=rng, Type:=wdFieldPage)
         fld2.Result.Font.Bold = True
+
+        ' Align the footer text to the center
+        rng.ParagraphFormat.Alignment = wdAlignParagraphCenter
     Next sec
 
     Exit Sub
