@@ -18,7 +18,7 @@ Private Const BOTTOM_MARGIN_CM As Double = 2 ' Bottom margin in cm
 Private Const LEFT_MARGIN_CM As Double = 3 ' Left margin in cm
 Private Const RIGHT_MARGIN_CM As Double = 3 ' Right margin in cm
 Private Const HEADER_DISTANCE_CM As Double = 0.5 ' Distance from header to content in cm
-Private Const FOOTER_DISTANCE_CM As Double = 1.5 ' Distance from footer to content in cm
+Private Const FOOTER_DISTANCE_CM As Double = 0.8 ' Distance from footer to content in cm
 
 ' Header image constants
 Private Const HEADER_IMAGE_RELATIVE_PATH As String = "\Documents\HeaderStamp.png" ' Relative path to the header image
@@ -273,12 +273,18 @@ Private Sub InsertFooterStamp(doc As Document)
     For Each sec In doc.Sections
         Set footer = sec.Footers(wdHeaderFooterPrimary)
         footer.LinkToPrevious = False
+        Set rng = footer.Range
+
+        ' Set the font and size for the footer text
+        With rng.Font
+            .Name = STANDARD_FONT
+            .Size = STANDARD_FONT_SIZE - 3 ' Slightly smaller than the main text
+        End With
 
         ' Clear existing footer content
-        footer.Range.Text = ""
+        rng.Text = ""
 
         ' Set range to the footer and center it
-        Set rng = footer.Range
         rng.ParagraphFormat.Alignment = wdAlignParagraphCenter
 
         ' Insert first page number field and make it bold
@@ -296,6 +302,7 @@ Private Sub InsertFooterStamp(doc As Document)
 
         ' Align the footer text to the center
         rng.ParagraphFormat.Alignment = wdAlignParagraphCenter
+
     Next sec
 
     Exit Sub
