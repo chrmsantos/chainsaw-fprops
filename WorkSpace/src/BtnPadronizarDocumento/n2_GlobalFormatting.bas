@@ -35,11 +35,6 @@ Public Sub GlobalFormatting()
     ' Set up error handling for the procedure
     On Error GoTo ErrorHandler
 
-    ' Save the document if there are unsaved changes
-    If ActiveDocument.Saved = False Then
-        ActiveDocument.Save
-    End If
-
     ' Temporarily disable screen updating and alerts for performance and user experience
     With Application
         .ScreenUpdating = False
@@ -170,15 +165,17 @@ Private Sub BasicFormatting(doc As Document)
 
     ' Apply font formatting to the entire document content
     With doc.Content.Font
-        '.Reset ' Uncomment to reset font formatting to default
         .Name = STANDARD_FONT
         .Size = STANDARD_FONT_SIZE
     End With
 
-    ' Optionally, set paragraph formatting (uncomment if needed)
+    ' Apply automatic hyphenation to the document
+    doc.Hyphenation.AutoHyphenation = True
+
+    ' Set paragraph formatting (example: 1.5 line spacing)
     With doc.Content.ParagraphFormat
-        .LineSpacingRule = wdLineSpaceMultiple
-        .LineSpacing = wdLineSpaceSingle * LINE_SPACING
+        .LineSpacingRule = wdLineSpace1pt5
+        .LineSpacing = 18 ' 1.5 lines at 12pt font
     End With
 
     Exit Sub
@@ -275,30 +272,31 @@ Private Sub InsertFooterStamp(doc As Document)
         footer.LinkToPrevious = False
         Set rng = footer.Range
 
+        ' Clear existing footer content
+        rng.Text = ""
+
         ' Set the font and size for the footer text
         With rng.Font
             .Name = STANDARD_FONT
             .Size = STANDARD_FONT_SIZE - 3 ' Slightly smaller than the main text
+            .Bold = True
         End With
 
-        ' Clear existing footer content
-        rng.Text = ""
-
-        ' Set range to the footer and center it
+        ' Center the footer
         rng.ParagraphFormat.Alignment = wdAlignParagraphCenter
 
-        ' Insert first page number field and make it bold
+        ' Insert first page number field (bold)
         Set fld1 = rng.Fields.Add(Range:=rng, Type:=wdFieldPage)
-        fld1.Result.Font.Bold = True
-
-        ' Move to end and insert hyphen (not bold)
         rng.Collapse Direction:=wdCollapseEnd
+
+        ' Insert hyphen (not bold)
+        rng.Font.Bold = False
         rng.InsertAfter "-"
         rng.Collapse Direction:=wdCollapseEnd
 
-        ' Insert second page number field and make it bold
+        ' Insert second page number field (bold)
+        rng.Font.Bold = True
         Set fld2 = rng.Fields.Add(Range:=rng, Type:=wdFieldPage)
-        fld2.Result.Font.Bold = True
 
         ' Align the footer text to the center
         rng.ParagraphFormat.Alignment = wdAlignParagraphCenter
