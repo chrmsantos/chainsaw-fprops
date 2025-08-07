@@ -18,7 +18,7 @@ Private Const BOTTOM_MARGIN_CM As Double = 2 ' Bottom margin in cm
 Private Const LEFT_MARGIN_CM As Double = 3 ' Left margin in cm
 Private Const RIGHT_MARGIN_CM As Double = 3 ' Right margin in cm
 Private Const HEADER_DISTANCE_CM As Double = 0.5 ' Distance from header to content in cm
-Private Const FOOTER_DISTANCE_CM As Double = 0.8 ' Distance from footer to content in cm
+Private Const FOOTER_DISTANCE_CM As Double = 0.9 ' Distance from footer to content in cm
 
 ' Header image constants
 Private Const HEADER_IMAGE_RELATIVE_PATH As String = "\Documents\HeaderStamp.png" ' Relative path to the header image
