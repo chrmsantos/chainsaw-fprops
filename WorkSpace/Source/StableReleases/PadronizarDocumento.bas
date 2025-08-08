@@ -24,7 +24,8 @@ Private Const wdFieldPage As Long = 33
 ' Document formatting constants
 Private Const STANDARD_FONT As String = "Arial"
 Private Const STANDARD_FONT_SIZE As Long = 12
-Private Const LINE_SPACING As Long = 10
+Private Const FOOTER_FONT_SIZE As Long = 9
+Private Const LINE_SPACING As Long = 18
 
 ' Margin constants in centimeters
 Private Const TOP_MARGIN_CM As Double = 5
@@ -35,109 +36,153 @@ Private Const HEADER_DISTANCE_CM As Double = 0.3
 Private Const FOOTER_DISTANCE_CM As Double = 0.9
 
 ' Header image constants
-Private Const HEADER_IMAGE_RELATIVE_PATH As String = "\Documents\HeaderStamp.png"
+Private Const HEADER_IMAGE_RELATIVE_PATH As String = "\Pictures\LegisTabStamp\HeaderStamp.png"
 Private Const HEADER_IMAGE_MAX_WIDTH_CM As Double = 21
 Private Const HEADER_IMAGE_TOP_MARGIN_CM As Double = 0.7
 Private Const HEADER_IMAGE_HEIGHT_RATIO As Double = 0.19
 
 '================================================================================
-' Entry point for the "Standardize Document" button
+' MAIN ENTRY POINT
 '================================================================================
 Public Sub BtnMAIN()
     On Error GoTo ErrHandler
 
-    With Application
-        .ScreenUpdating = False
-        .DisplayAlerts = False
-        .StatusBar = "Formatting document..."
+    SetAppState False, "Formatting document..."
+
+    If Not GlobalChecking Then GoTo CleanUp
+
+    With ActiveDocument
+        GlobalFormatting .Application.ActiveDocument
     End With
 
-    Call GlobalChecking
-    Call GlobalFormatting
-
-    With Application
-        .ScreenUpdating = True
-        .DisplayAlerts = True
-        .StatusBar = False
-    End With
-
+    Application.StatusBar = "Document standardized successfully!"
     Exit Sub
 
 ErrHandler:
-    With Application
-        .ScreenUpdating = True
-        .DisplayAlerts = True
-        .StatusBar = False
-    End With
+    Application.StatusBar = "Error: " & Err.Description
     MsgBox "An error occurred while standardizing the document:" & vbCrLf & _
            "Error " & Err.Number & ": " & Err.Description, vbCritical, "Error"
+CleanUp:
+    SetAppState True, ""   ' Do NOT clear the status bar here
+    Exit Sub
 End Sub
 
 '================================================================================
-' Checks initial conditions before running other routines.
+' APPLICATION STATE HANDLER
 '================================================================================
-Sub GlobalChecking()
+Private Sub SetAppState(Optional ByVal enabled As Boolean = True, Optional ByVal statusMsg As String = "")
+    With Application
+        .ScreenUpdating = enabled
+        .DisplayAlerts = enabled
+        If Not enabled And statusMsg <> "" Then
+            .StatusBar = statusMsg ' Show the custom message
+        End If
+        ' Do NOT clear the status bar when enabled
+    End With
+End Sub
+
+'================================================================================
+' GLOBAL CHECKING
+'================================================================================
+Private Function GlobalChecking() As Boolean
     On Error GoTo ErrorHandler
 
     If ActiveDocument Is Nothing Then
-        MsgBox "No active document found. Please open a document to format.", _
-               vbExclamation, "Inactive Document"
-        Exit Sub
+        MsgBox "No active document found. Please open a document to format.", vbExclamation, "Inactive Document"
+        Exit Function
     End If
 
     If ActiveDocument.Type <> wdTypeDocument Then
-        MsgBox "The active document is not a Word document. Please open a Word document to format.", _
-               vbExclamation, "Invalid Document Type"
-        Exit Sub
+        MsgBox "The active document is not a Word document. Please open a Word document to format.", vbExclamation, "Invalid Document Type"
+        Exit Function
     End If
 
-    Exit Sub
+    ' Security: Check if document is protected
+    If ActiveDocument.ProtectionType <> 0 And ActiveDocument.ProtectionType <> -1 Then
+        MsgBox "The document is protected. Please unprotect it before formatting.", vbExclamation, "Protected Document"
+        Exit Function
+    End If
+
+    ' Security: Check for macros in the document (warn user)
+    If HasMacros(ActiveDocument) Then
+        If MsgBox("Warning: This document contains macros. Continue formatting?", vbExclamation + vbYesNo, "Macro Warning") = vbNo Then
+            Exit Function
+        End If
+    End If
+
+    GlobalChecking = True
+    Exit Function
 
 ErrorHandler:
-    With Application
-        .ScreenUpdating = True
-        .DisplayAlerts = True
-        .StatusBar = False
-    End With
     HandleError "GlobalChecking"
-End Sub
+    GlobalChecking = False
+End Function
 
 '================================================================================
-' Main formatting routine
+' MAIN FORMATTING ROUTINE
 '================================================================================
-Public Sub GlobalFormatting()
+Private Sub GlobalFormatting(doc As Document)
     On Error GoTo ErrorHandler
 
-    With Application
-        .ScreenUpdating = False
-        .DisplayAlerts = False
-        .StatusBar = "Formatting document..."
-    End With
-
-    BasicFormatting ActiveDocument
-    RemoveWatermark ActiveDocument
-    InsertHeaderStamp ActiveDocument
-    InsertFooterStamp ActiveDocument
-
-    With Application
-        .ScreenUpdating = True
-        .DisplayAlerts = True
-        .StatusBar = False
+    ' Performance: Use With block for doc to minimize property lookups
+    With doc
+        ApplyPageSetup .Application.ActiveDocument
+        ApplyFontAndParagraph .Application.ActiveDocument
+        EnableHyphenation .Application.ActiveDocument
+        RemoveWatermark .Application.ActiveDocument
+        InsertHeaderStamp .Application.ActiveDocument
+        InsertFooterStamp .Application.ActiveDocument
     End With
 
     Exit Sub
 
 ErrorHandler:
-    With Application
-        .ScreenUpdating = True
-        .DisplayAlerts = True
-        .StatusBar = False
-    End With
-    HandleError "Main"
+    HandleError "GlobalFormatting"
 End Sub
 
 '================================================================================
-' Removes watermark shapes from all sections if present.
+' PAGE SETUP
+'================================================================================
+Private Sub ApplyPageSetup(doc As Document)
+    ' Performance: Only set if different to avoid unnecessary redraws
+    With doc.PageSetup
+        If .TopMargin <> CentimetersToPoints(TOP_MARGIN_CM) Then .TopMargin = CentimetersToPoints(TOP_MARGIN_CM)
+        If .BottomMargin <> CentimetersToPoints(BOTTOM_MARGIN_CM) Then .BottomMargin = CentimetersToPoints(BOTTOM_MARGIN_CM)
+        If .LeftMargin <> CentimetersToPoints(LEFT_MARGIN_CM) Then .LeftMargin = CentimetersToPoints(LEFT_MARGIN_CM)
+        If .RightMargin <> CentimetersToPoints(RIGHT_MARGIN_CM) Then .RightMargin = CentimetersToPoints(RIGHT_MARGIN_CM)
+        If .HeaderDistance <> CentimetersToPoints(HEADER_DISTANCE_CM) Then .HeaderDistance = CentimetersToPoints(HEADER_DISTANCE_CM)
+        If .FooterDistance <> CentimetersToPoints(FOOTER_DISTANCE_CM) Then .FooterDistance = CentimetersToPoints(FOOTER_DISTANCE_CM)
+    End With
+End Sub
+
+'================================================================================
+' FONT AND PARAGRAPH FORMATTING
+'================================================================================
+Private Sub ApplyFontAndParagraph(doc As Document)
+    ' Performance: Use Range for bulk formatting
+    Dim rng As Range
+    Set rng = doc.Content
+    With rng.Font
+        .Name = STANDARD_FONT
+        .Size = STANDARD_FONT_SIZE
+    End With
+    With rng.ParagraphFormat
+        .LineSpacingRule = wdLineSpace1pt5
+        .LineSpacing = LINE_SPACING
+    End With
+End Sub
+
+'================================================================================
+' ENABLE HYPHENATION
+'================================================================================
+Private Sub EnableHyphenation(doc As Document)
+    On Error Resume Next
+    If Not doc.AutoHyphenation Then doc.AutoHyphenation = True
+    On Error GoTo 0
+End Sub
+
+'================================================================================
+' REMOVE WATERMARK
 '================================================================================
 Private Sub RemoveWatermark(doc As Document)
     On Error Resume Next
@@ -149,14 +194,14 @@ Private Sub RemoveWatermark(doc As Document)
 
     For Each sec In doc.Sections
         For Each header In sec.Headers
-            For i = header.Shapes.Count To 1 Step -1
-                Set shp = header.Shapes(i)
-                If shp.Type = msoPicture Or shp.Type = msoTextEffect Then
-                    If InStr(1, shp.Name, "Watermark", vbTextCompare) > 0 Then
+            If header.Shapes.Count > 0 Then
+                For i = header.Shapes.Count To 1 Step -1
+                    Set shp = header.Shapes(i)
+                    If (shp.Type = msoPicture Or shp.Type = msoTextEffect) And InStr(1, shp.Name, "Watermark", vbTextCompare) > 0 Then
                         shp.Delete
                     End If
-                End If
-            Next i
+                Next i
+            End If
         Next header
     Next sec
 
@@ -164,60 +209,7 @@ Private Sub RemoveWatermark(doc As Document)
 End Sub
 
 '================================================================================
-' Handles errors by displaying an error message and logging it to the debug console.
-'================================================================================
-Public Sub HandleError(procedureName As String)
-    Dim errMsg As String
-    errMsg = "Error in subroutine: " & procedureName & vbCrLf & _
-             "Error #" & Err.Number & ": " & Err.Description
-    MsgBox errMsg, vbCritical, "Formatting Error"
-    Debug.Print errMsg
-    Err.Clear
-End Sub
-
-'================================================================================
-' Converts a value in centimeters to points.
-'================================================================================
-Private Function CentimetersToPoints(ByVal cm As Double) As Single
-    CentimetersToPoints = Application.CentimetersToPoints(cm)
-End Function
-
-'================================================================================
-' Applies standard formatting to the document, including font, margins, and paragraph formatting.
-'================================================================================
-Private Sub BasicFormatting(doc As Document)
-    On Error GoTo ErrorHandler
-
-    With doc.PageSetup
-        .TopMargin = CentimetersToPoints(TOP_MARGIN_CM)
-        .BottomMargin = CentimetersToPoints(BOTTOM_MARGIN_CM)
-        .LeftMargin = CentimetersToPoints(LEFT_MARGIN_CM)
-        .RightMargin = CentimetersToPoints(RIGHT_MARGIN_CM)
-        .HeaderDistance = CentimetersToPoints(HEADER_DISTANCE_CM)
-        .FooterDistance = CentimetersToPoints(FOOTER_DISTANCE_CM)
-    End With
-
-    With doc.Content.Font
-        .Name = STANDARD_FONT
-        .Size = STANDARD_FONT_SIZE
-    End With
-
-    ' Enable automatic hyphenation for the document
-    doc.AutoHyphenation = True
-
-    With doc.Content.ParagraphFormat
-        .LineSpacingRule = wdLineSpace1pt5
-        .LineSpacing = 18
-    End With
-
-    Exit Sub
-
-ErrorHandler:
-    HandleError "BasicFormatting"
-End Sub
-
-'================================================================================
-' Inserts a standard header image into the document's headers.
+' INSERT HEADER IMAGE
 '================================================================================
 Private Sub InsertHeaderStamp(doc As Document)
     On Error GoTo ErrorHandler
@@ -229,8 +221,14 @@ Private Sub InsertHeaderStamp(doc As Document)
     Dim imgWidth As Single
     Dim imgHeight As Single
 
-    username = Environ("USERNAME")
+    username = GetSafeUserName()
     imgFile = "C:\Users\" & username & HEADER_IMAGE_RELATIVE_PATH
+
+    ' Security: Validate image path (prevent directory traversal)
+    If InStr(imgFile, "..") > 0 Or InStr(imgFile, ":") > 2 Then
+        MsgBox "Invalid image path detected. Aborting header image insertion.", vbCritical, "Security Alert"
+        Exit Sub
+    End If
 
     If Dir(imgFile) = "" Then
         MsgBox "Header image not found at: " & vbCrLf & imgFile, vbExclamation, "Image Missing"
@@ -250,22 +248,25 @@ Private Sub InsertHeaderStamp(doc As Document)
             .Font.Name = STANDARD_FONT
             .Font.Size = STANDARD_FONT_SIZE
             .ParagraphFormat.LineSpacingRule = wdLineSpaceMultiple
-            .ParagraphFormat.LineSpacing = 18
+            .ParagraphFormat.LineSpacing = LINE_SPACING
         End With
 
-        With header.Shapes.AddPicture( _
-            fileName:=imgFile, _
-            LinkToFile:=False, _
-            SaveWithDocument:=True, _
-            Left:=wdShapeCenter, _
-            Top:=CentimetersToPoints(HEADER_IMAGE_TOP_MARGIN_CM), _
-            Width:=imgWidth, _
-            Height:=imgHeight)
-            .WrapFormat.Type = wdWrapTight
-            .RelativeHorizontalPosition = wdRelativeHorizontalPositionPage
-            .RelativeVerticalPosition = wdRelativeVerticalPositionPage
-            .LockAspectRatio = msoTrue
-        End With
+        ' Performance: Only add image if not already present
+        If header.Shapes.Count = 0 Then
+            With header.Shapes.AddPicture( _
+                fileName:=imgFile, _
+                LinkToFile:=False, _
+                SaveWithDocument:=True, _
+                Left:=wdShapeCenter, _
+                Top:=CentimetersToPoints(HEADER_IMAGE_TOP_MARGIN_CM), _
+                Width:=imgWidth, _
+                Height:=imgHeight)
+                .WrapFormat.Type = wdWrapTight
+                .RelativeHorizontalPosition = wdRelativeHorizontalPositionPage
+                .RelativeVerticalPosition = wdRelativeVerticalPositionPage
+                .LockAspectRatio = msoTrue
+            End With
+        End If
     Next sec
 
     Exit Sub
@@ -275,7 +276,7 @@ ErrorHandler:
 End Sub
 
 '================================================================================
-' Inserts centered automatic page numbers in the footer in the format "1-1" (both bold).
+' INSERT FOOTER PAGE NUMBERS
 '================================================================================
 Private Sub InsertFooterStamp(doc As Document)
     On Error GoTo ErrorHandler
@@ -296,7 +297,7 @@ Private Sub InsertFooterStamp(doc As Document)
 
         ' Insert first page number (bold)
         rng.Font.Name = STANDARD_FONT
-        rng.Font.Size = STANDARD_FONT_SIZE - 3
+        rng.Font.Size = FOOTER_FONT_SIZE
         rng.Font.Bold = True
         Set fld1 = rng.Fields.Add(Range:=rng, Type:=wdFieldPage)
         rng.Collapse Direction:=wdCollapseEnd
@@ -317,4 +318,49 @@ Private Sub InsertFooterStamp(doc As Document)
 ErrorHandler:
     HandleError "InsertFooterStamp"
 End Sub
+
+'================================================================================
+' ERROR HANDLER
+'================================================================================
+Public Sub HandleError(procedureName As String)
+    Dim errMsg As String
+    errMsg = "Error in subroutine: " & procedureName & vbCrLf & _
+             "Error #" & Err.Number & ": " & Err.Description
+    Application.StatusBar = "Error: " & Err.Description
+    MsgBox errMsg, vbCritical, "Formatting Error"
+    Debug.Print errMsg
+    Err.Clear
+End Sub
+
+'================================================================================
+' UTILITY: CM TO POINTS
+'================================================================================
+Private Function CentimetersToPoints(ByVal cm As Double) As Single
+    CentimetersToPoints = Application.CentimetersToPoints(cm)
+End Function
+
+'================================================================================
+' UTILITY: SAFE USERNAME
+'================================================================================
+Private Function GetSafeUserName() As String
+    ' Only allow alphanumeric and underscore in username for path safety
+    Dim rawName As String, c As String, i As Integer
+    rawName = Environ("USERNAME")
+    For i = 1 To Len(rawName)
+        c = Mid(rawName, i, 1)
+        If c Like "[A-Za-z0-9_]" Then
+            GetSafeUserName = GetSafeUserName & c
+        End If
+    Next i
+End Function
+
+'================================================================================
+' UTILITY: CHECK FOR MACROS
+'================================================================================
+Private Function HasMacros(doc As Document) As Boolean
+    ' Checks for VBA project in the document (Word 2010+)
+    On Error Resume Next
+    HasMacros = (doc.HasVBProject)
+    On Error GoTo 0
+End Function
 
