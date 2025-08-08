@@ -247,7 +247,7 @@ Private Sub InsertHeaderStamp(doc As Document)
     imgFile = "C:\Users\" & username & HEADER_IMAGE_RELATIVE_PATH
 
     If Dir(imgFile) = "" Then
-        MsgBox "Imagem de cabeçalho não encontrada em:" & vbCrLf & imgFile, vbExclamation, "Imagem Ausente"
+        MsgBox "Header image not found at:" & vbCrLf & imgFile, vbExclamation, "Image Missing"
         Exit Sub
     End If
 
@@ -257,9 +257,9 @@ Private Sub InsertHeaderStamp(doc As Document)
     For Each sec In doc.Sections
         Set header = sec.Headers(wdHeaderFooterPrimary)
         header.LinkToPrevious = False
-        header.Range.Text = "" ' Limpa conteúdo anterior
+        header.Range.Text = "" ' Clears previous content
 
-        ' Insere como Shape diretamente no cabeçalho
+        ' Inserts the image as a Shape directly into the header
         Set shp = header.Shapes.AddPicture( _
             FileName:=imgFile, _
             LinkToFile:=False, _
@@ -270,13 +270,13 @@ Private Sub InsertHeaderStamp(doc As Document)
             .Width = imgWidth
             .Height = imgHeight
 
-            ' Posição absoluta centralizada na página
+            ' Absolute positioning centered on the page
             .RelativeHorizontalPosition = wdRelativeHorizontalPositionPage
             .RelativeVerticalPosition = wdRelativeVerticalPositionPage
             .Left = (doc.PageSetup.PageWidth - .Width) / 2
             .Top = CentimetersToPoints(HEADER_IMAGE_TOP_MARGIN_CM)
 
-            ' Sem quebra de texto, flutua sozinho
+            ' No text wrapping, floats independently
             .WrapFormat.Type = 3 ' msoWrapTopBottom
         End With
     Next sec
