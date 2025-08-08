@@ -241,18 +241,13 @@ Private Sub InsertHeaderStamp(doc As Document)
     Dim username As String
     Dim imgWidth As Single
     Dim imgHeight As Single
+    Dim shp As Shape
 
     username = GetSafeUserName()
     imgFile = "C:\Users\" & username & HEADER_IMAGE_RELATIVE_PATH
 
-    ' Security: Validate image path (prevent directory traversal)
-    If InStr(imgFile, "..") > 0 Or InStr(imgFile, ":") > 2 Then
-        MsgBox "Invalid image path detected. Aborting header image insertion.", vbCritical, "Security Alert"
-        Exit Sub
-    End If
-
     If Dir(imgFile) = "" Then
-        MsgBox "Header image not found at: " & vbCrLf & imgFile, vbExclamation, "Image Missing"
+        MsgBox "Imagem de cabeçalho não encontrada em:" & vbCrLf & imgFile, vbExclamation, "Imagem Ausente"
         Exit Sub
     End If
 
@@ -262,32 +257,28 @@ Private Sub InsertHeaderStamp(doc As Document)
     For Each sec In doc.Sections
         Set header = sec.Headers(wdHeaderFooterPrimary)
         header.LinkToPrevious = False
-        header.Range.Delete
+        header.Range.Text = "" ' Limpa conteúdo anterior
 
-        With header.Range
-            .Font.Reset
-            .Font.Name = STANDARD_FONT
-            .Font.Size = STANDARD_FONT_SIZE
-            .ParagraphFormat.LineSpacingRule = wdLineSpaceMultiple
-            .ParagraphFormat.LineSpacing = LINE_SPACING
+        ' Insere como Shape diretamente no cabeçalho
+        Set shp = header.Shapes.AddPicture( _
+            FileName:=imgFile, _
+            LinkToFile:=False, _
+            SaveWithDocument:=True)
+
+        With shp
+            .LockAspectRatio = msoTrue
+            .Width = imgWidth
+            .Height = imgHeight
+
+            ' Posição absoluta centralizada na página
+            .RelativeHorizontalPosition = wdRelativeHorizontalPositionPage
+            .RelativeVerticalPosition = wdRelativeVerticalPositionPage
+            .Left = (doc.PageSetup.PageWidth - .Width) / 2
+            .Top = CentimetersToPoints(HEADER_IMAGE_TOP_MARGIN_CM)
+
+            ' Sem quebra de texto, flutua sozinho
+            .WrapFormat.Type = 3 ' msoWrapTopBottom
         End With
-
-        ' Performance: Only add image if not already present
-        If header.Shapes.Count = 0 Then
-            With header.Shapes.AddPicture( _
-                fileName:=imgFile, _
-                LinkToFile:=False, _
-                SaveWithDocument:=True, _
-                Left:=wdShapeCenter, _
-                Top:=CentimetersToPoints(HEADER_IMAGE_TOP_MARGIN_CM), _
-                Width:=imgWidth, _
-                Height:=imgHeight)
-                .WrapFormat.Type = wdWrapTight
-                .RelativeHorizontalPosition = wdRelativeHorizontalPositionPage
-                .RelativeVerticalPosition = wdRelativeVerticalPositionPage
-                .LockAspectRatio = msoTrue
-            End With
-        End If
     Next sec
 
     Exit Sub
