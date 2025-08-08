@@ -159,26 +159,39 @@ End Sub
 ' FONT AND PARAGRAPH FORMATTING
 '================================================================================
 Private Sub ApplyFontAndParagraph(doc As Document)
-    ' Performance: Use Range for bulk formatting
-    Dim rng As Range
-    Set rng = doc.Content
-    With rng.Font
-        .Name = STANDARD_FONT
-        .Size = STANDARD_FONT_SIZE
-    End With
-    With rng.ParagraphFormat
-        .LineSpacingRule = wdLineSpace1pt5
-        .LineSpacing = LINE_SPACING
-    End With
-
-    ' Justify all paragraphs that are left-aligned
     Dim para As Paragraph
+    Dim hasInlineImage As Boolean
+
     For Each para In doc.Paragraphs
-        If para.Alignment = wdAlignParagraphLeft Then
-            para.Alignment = wdAlignParagraphJustify
+        hasInlineImage = False
+
+        ' Check if paragraph contains any inline image
+        If para.Range.InlineShapes.Count > 0 Then
+            hasInlineImage = True
+        End If
+
+        ' Skip formatting if inline image is present
+        If Not hasInlineImage Then
+            ' Apply font formatting
+            With para.Range.Font
+                .Name = STANDARD_FONT
+                .Size = STANDARD_FONT_SIZE
+            End With
+
+            ' Apply paragraph formatting
+            With para.Format
+                .LineSpacingRule = wdLineSpace1pt5
+                .LineSpacing = LINE_SPACING
+            End With
+
+            ' Justify left-aligned paragraphs
+            If para.Alignment = wdAlignParagraphLeft Then
+                para.Alignment = wdAlignParagraphJustify
+            End If
         End If
     Next para
 End Sub
+
 
 '================================================================================
 ' ENABLE HYPHENATION
