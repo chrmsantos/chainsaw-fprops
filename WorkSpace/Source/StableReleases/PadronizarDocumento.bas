@@ -170,6 +170,14 @@ Private Sub ApplyFontAndParagraph(doc As Document)
         .LineSpacingRule = wdLineSpace1pt5
         .LineSpacing = LINE_SPACING
     End With
+
+    ' Justify all paragraphs that are left-aligned
+    Dim para As Paragraph
+    For Each para In doc.Paragraphs
+        If para.Alignment = wdAlignParagraphLeft Then
+            para.Alignment = wdAlignParagraphJustify
+        End If
+    Next para
 End Sub
 
 '================================================================================
