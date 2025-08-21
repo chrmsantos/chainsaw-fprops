@@ -44,15 +44,15 @@ Private Const HEADER_IMAGE_HEIGHT_RATIO As Double = 0.19
 '================================================================================
 ' MAIN ENTRY POINT
 '================================================================================
-Public Sub BtnMAIN()
+Public Sub PadronizarDocumentoMain()
     On Error GoTo ErrHandler
 
     SetAppState False, "Formatting document..."
 
-    If Not GlobalChecking Then GoTo CleanUp
+    If Not PreviousChecking Then GoTo CleanUp
 
     With ActiveDocument
-        GlobalFormatting .Application.ActiveDocument
+        PreviousFormatting .Application.ActiveDocument
     End With
 
     Application.StatusBar = "Document standardized successfully!"
@@ -84,7 +84,7 @@ End Sub
 '================================================================================
 ' GLOBAL CHECKING
 '================================================================================
-Private Function GlobalChecking() As Boolean
+Private Function PreviousChecking() As Boolean
     On Error GoTo ErrorHandler
 
     If ActiveDocument Is Nothing Then
@@ -103,25 +103,18 @@ Private Function GlobalChecking() As Boolean
         Exit Function
     End If
 
-    ' Security: Check for macros in the document (warn user)
-    If HasMacros(ActiveDocument) Then
-        If MsgBox("Warning: This document contains macros. Continue formatting?", vbExclamation + vbYesNo, "Macro Warning") = vbNo Then
-            Exit Function
-        End If
-    End If
-
-    GlobalChecking = True
+    PreviousChecking = True
     Exit Function
 
 ErrorHandler:
-    HandleError "GlobalChecking"
-    GlobalChecking = False
+    HandleError "PreviousChecking"
+    PreviousChecking = False
 End Function
 
 '================================================================================
 ' MAIN FORMATTING ROUTINE
 '================================================================================
-Private Sub GlobalFormatting(doc As Document)
+Private Sub PreviousFormatting(doc As Document)
     On Error GoTo ErrorHandler
 
     ' Performance: Use With block for doc to minimize property lookups
@@ -137,7 +130,7 @@ Private Sub GlobalFormatting(doc As Document)
     Exit Sub
 
 ErrorHandler:
-    HandleError "GlobalFormatting"
+    HandleError "PreviousFormatting"
 End Sub
 
 '================================================================================

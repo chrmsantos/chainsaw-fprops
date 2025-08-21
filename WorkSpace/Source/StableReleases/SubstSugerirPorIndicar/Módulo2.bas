@@ -1,4 +1,4 @@
-Sub SubstSugerirPorIndicar()
+Sub SubstSugerirPorIndicarMain()
 '
 ' Replace "Sugerir" and its variants with "Indicar" and its variants throughout the document.
 '
@@ -6,9 +6,33 @@ Sub SubstSugerirPorIndicar()
     Dim replaceArray As Variant
     Dim i As Integer
 
-    ' List of variants to replace (add more as needed)
-    findArray = Array("Sugerir", "sugerir, ""sugiro", "Sugiro", "sugerido", "Sugerido", "Sugerida", "sugerida", "Sugeridos", "sugeridos", "Sugeridas", "sugeridas", "Sugere", "sugere", "Sugeri", "sugeri", "Sugerimos", "sugerimos")
-    replaceArray = Array("Indicar", "indicar", "indico", "Indico", "indicado", "Indicado", "Indicada", "indicada", "Indicados", "indicados", "Indicadas", "indicadas", "Indica", "indica", "Indiquei", "indiquei", "Indicamos", "indicamos")
+    ' Add Word constants if not available
+    Const wdFindContinue As Long = 1
+    Const wdReplaceAll As Long = 2
+
+    ' List of variants to replace (aligned and corrected)
+    findArray = Array( _
+        "Sugerir", "sugerir", _
+        "Sugiro", "sugiro", _
+        "Sugerido", "sugerido", _
+        "Sugerida", "sugerida", _
+        "Sugeridos", "sugeridos", _
+        "Sugeridas", "sugeridas", _
+        "Sugere", "sugere", _
+        "Sugeri", "sugeri", _
+        "Sugerimos", "sugerimos" _
+    )
+    replaceArray = Array( _
+        "Indicar", "indicar", _
+        "Indico", "indico", _
+        "Indicado", "indicado", _
+        "Indicada", "indicada", _
+        "Indicados", "indicados", _
+        "Indicadas", "indicadas", _
+        "Indica", "indica", _
+        "Indiquei", "indiquei", _
+        "Indicamos", "indicamos" _
+    )
 
     For i = LBound(findArray) To UBound(findArray)
         With ActiveDocument.Content.Find
