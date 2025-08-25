@@ -25,7 +25,7 @@ Private Const wdFieldPage As Long = 33
 Private Const STANDARD_FONT As String = "Arial"
 Private Const STANDARD_FONT_SIZE As Long = 12
 Private Const FOOTER_FONT_SIZE As Long = 9
-Private Const LINE_SPACING As Long = 13
+Private Const LINE_SPACING As Long = 14
 
 ' Margin constants in centimeters
 Private Const TOP_MARGIN_CM As Double = 5
