@@ -22,9 +22,14 @@ Private Const msoTextEffect As Long = 15
 Private Const wdCollapseEnd As Long = 0
 Private Const wdFieldPage As Long = 33
 Private Const wdFieldNumPages As Long = 26
+Private Const wdFieldEmpty As Long = -1
 Private Const wdRelativeHorizontalPositionPage As Long = 1
 Private Const wdRelativeVerticalPositionPage As Long = 1
 Private Const wdWrapTopBottom As Long = 3
+Private Const wdAlertsAll As Long = 0
+Private Const wdAlertsNone As Long = -1
+Private Const wdColorAutomatic As Long = -16777216
+Private Const wdOrientPortrait As Long = 0
 
 ' Document formatting constants
 Private Const STANDARD_FONT As String = "Arial"
@@ -111,7 +116,8 @@ CleanUp:
     ' Save and close log
     FinalizeLogging
     
-    SetAppState True, "Pronto"
+    ' Exibir mensagem de sucesso na barra de status
+    SetAppState True, "Documento padronizado com sucesso!"
     Exit Sub
     
 ErrHandler:
@@ -249,9 +255,10 @@ Private Sub SetAppState(Optional ByVal enabled As Boolean = True, Optional ByVal
     With Application
         .ScreenUpdating = enabled
         .DisplayAlerts = IIf(enabled, wdAlertsAll, wdAlertsNone)
-        ' Removido .EnableEvents e .Calculation que não existem no Word
         If statusMsg <> "" Then
             .StatusBar = statusMsg
+        ElseIf enabled Then
+            .StatusBar = False ' Limpa a barra de status se não houver mensagem
         End If
     End With
 End Sub
@@ -426,7 +433,7 @@ Private Sub ApplyPageSetup(doc As Document)
         .HeaderDistance = CentimetersToPoints(HEADER_DISTANCE_CM)
         .FooterDistance = CentimetersToPoints(FOOTER_DISTANCE_CM)
         .Gutter = 0
-        .Orientation = 0 ' wdOrientPortrait
+        .Orientation = wdOrientPortrait
     End With
     
     LogMessage "Configurações de página aplicadas com sucesso", LOG_LEVEL_INFO
@@ -452,7 +459,6 @@ Private Sub ApplyFontAndParagraph(doc As Document)
 
     LogMessage "Aplicando formatação de fonte e parágrafo", LOG_LEVEL_INFO
 
-    ' Calculate right indent based on document right margin
     ' O recuo à direita deve ser ZERO para alinhar com a margem direita
     rightMarginPoints = 0
 
@@ -735,7 +741,7 @@ Private Sub InsertFooterStamp(doc As Document)
             ' Update the field to show correct values
             rng.Fields.Update
             
-            ' Ensure no bold formatting in footer - usando o range diretamente
+            ' Ensure no bold formatting in footer
             rng.Font.Bold = False
             rng.Font.Name = STANDARD_FONT
             rng.Font.Size = FOOTER_FONT_SIZE
@@ -884,4 +890,177 @@ Private Sub RestoreDefaultSettings()
     Application.ScreenUpdating = True
     Application.DisplayAlerts = wdAlertsAll
     Application.StatusBar = ""
+End Sub
+'================================================================================
+' UTILITY: OPEN LOG FILE - VERSÃO CORRIGIDA E SEGURA
+'================================================================================
+Public Sub AbrirLog()
+    On Error GoTo ErrorHandler
+    
+    Dim shell As Object
+    Dim logPathToOpen As String
+    
+    Set shell = CreateObject("WScript.Shell")
+    
+    ' Determinar qual arquivo de log abrir
+    If logFilePath <> "" And Dir(logFilePath) <> "" Then
+        logPathToOpen = logFilePath
+    Else
+        ' Tentar encontrar o log na pasta TEMP
+        logPathToOpen = Environ("TEMP") & "\DocumentFormattingLog.txt"
+        
+        If Dir(logPathToOpen) = "" Then
+            ' Procurar por arquivos de log recentes
+            logPathToOpen = EncontrarArquivoLogRecente()
+            
+            If logPathToOpen = "" Then
+                MsgBox "Nenhum arquivo de log encontrado." & vbCrLf & _
+                       "Execute a padronização primeiro para gerar logs.", _
+                       vbInformation, "Log Não Encontrado"
+                Exit Sub
+            End If
+        End If
+    End If
+    
+    ' Verificar se o arquivo existe
+    If Dir(logPathToOpen) = "" Then
+        MsgBox "Arquivo de log não encontrado:" & vbCrLf & logPathToOpen, _
+               vbExclamation, "Arquivo Não Existe"
+        Exit Sub
+    End If
+    
+    ' Abrir o arquivo de forma segura com Notepad
+    shell.Run "notepad.exe " & Chr(34) & logPathToOpen & Chr(34), 1, True
+    
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "Erro ao abrir o arquivo de log:" & vbCrLf & _
+           "Erro " & Err.Number & ": " & Err.Description, vbExclamation, "Erro"
+End Sub
+
+'================================================================================
+' UTILITY: FIND RECENT LOG FILE
+'================================================================================
+Private Function EncontrarArquivoLogRecente() As String
+    On Error Resume Next
+    
+    Dim fso As Object
+    Dim tempFolder As Object
+    Dim file As Object
+    Dim recentFile As Object
+    Dim recentDate As Date
+    
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    
+    ' Procurar na pasta TEMP
+    Set tempFolder = fso.GetFolder(Environ("TEMP"))
+    
+    For Each file In tempFolder.Files
+        If LCase(fso.GetExtensionName(file.Name)) = "txt" Then
+            If InStr(1, file.Name, "FormattingLog", vbTextCompare) > 0 Then
+                If recentFile Is Nothing Then
+                    Set recentFile = file
+                    recentDate = file.DateLastModified
+                ElseIf file.DateLastModified > recentDate Then
+                    Set recentFile = file
+                    recentDate = file.DateLastModified
+                End If
+            End If
+        End If
+    Next file
+    
+    If Not recentFile Is Nothing Then
+        EncontrarArquivoLogRecente = recentFile.Path
+    Else
+        EncontrarArquivoLogRecente = ""
+    End If
+End Function
+
+'================================================================================
+' UTILITY: SHOW LOG PATH - VERSÃO SEGURA
+'================================================================================
+Public Sub MostrarCaminhoDoLog()
+    On Error GoTo ErrorHandler
+    
+    Dim msg As String
+    Dim logPath As String
+    
+    ' Determinar o caminho do log para mostrar
+    If logFilePath <> "" And Dir(logFilePath) <> "" Then
+        logPath = logFilePath
+    Else
+        logPath = Environ("TEMP") & "\DocumentFormattingLog.txt"
+        If Dir(logPath) = "" Then
+            logPath = EncontrarArquivoLogRecente()
+            If logPath = "" Then
+                msg = "Nenhum arquivo de log encontrado." & vbCrLf & _
+                      "Execute a padronização primeiro para gerar logs."
+                MsgBox msg, vbInformation, "Log Não Encontrado"
+                Exit Sub
+            End If
+        End If
+    End If
+    
+    ' Verificar se o arquivo existe
+    If Dir(logPath) = "" Then
+        msg = "Arquivo de log não existe mais:" & vbCrLf & logPath
+        MsgBox msg, vbExclamation, "Arquivo Não Existe"
+        Exit Sub
+    End If
+    
+    ' Criar mensagem com opções
+    msg = "Arquivo de log localizado em:" & vbCrLf & vbCrLf & logPath & vbCrLf & vbCrLf
+    msg = msg & "Deseja abrir o arquivo agora?"
+    
+    Dim response As VbMsgBoxResult
+    response = MsgBox(msg, vbQuestion + vbYesNo, "Localização do Log")
+    
+    If response = vbYes Then
+        AbrirLog
+    End If
+    
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "Erro ao mostrar caminho do log:" & vbCrLf & _
+           "Erro " & Err.Number & ": " & Err.Description, vbExclamation, "Erro"
+End Sub
+
+'================================================================================
+' UTILITY: COPY LOG PATH TO CLIPBOARD
+'================================================================================
+Public Sub CopiarCaminhoDoLog()
+    On Error GoTo ErrorHandler
+    
+    Dim logPath As String
+    Dim clipboard As Object
+    
+    ' Determinar o caminho do log
+    If logFilePath <> "" And Dir(logFilePath) <> "" Then
+        logPath = logFilePath
+    Else
+        logPath = Environ("TEMP") & "\DocumentFormattingLog.txt"
+        If Dir(logPath) = "" Then
+            logPath = EncontrarArquivoLogRecente()
+            If logPath = "" Then
+                MsgBox "Nenhum arquivo de log encontrado para copiar.", _
+                       vbInformation, "Log Não Encontrado"
+                Exit Sub
+            End If
+        End If
+    End If
+    
+    ' Copiar para clipboard
+    Set clipboard = CreateObject("HTMLFile")
+    clipboard.parentWindow.clipboardData.setData "text", logPath
+    
+    MsgBox "Caminho do log copiado para a área de transferência:" & vbCrLf & vbCrLf & logPath, _
+           vbInformation, "Caminho Copiado"
+    
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "Erro ao copiar caminho do log:" & vbCrLf & _
+           "Erro " & Err.Number & ": " & Err.Description, vbExclamation, "Erro"
 End Sub
