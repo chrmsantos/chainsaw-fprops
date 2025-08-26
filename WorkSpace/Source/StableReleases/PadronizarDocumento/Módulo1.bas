@@ -249,8 +249,7 @@ Private Sub SetAppState(Optional ByVal enabled As Boolean = True, Optional ByVal
     With Application
         .ScreenUpdating = enabled
         .DisplayAlerts = IIf(enabled, wdAlertsAll, wdAlertsNone)
-        .EnableEvents = enabled
-        .Calculation = IIf(enabled, wdCalculationAutomatic, wdCalculationManual)
+        ' Removido .EnableEvents e .Calculation que não existem no Word
         If statusMsg <> "" Then
             .StatusBar = statusMsg
         End If
@@ -454,7 +453,8 @@ Private Sub ApplyFontAndParagraph(doc As Document)
     LogMessage "Aplicando formatação de fonte e parágrafo", LOG_LEVEL_INFO
 
     ' Calculate right indent based on document right margin
-    rightMarginPoints = doc.PageSetup.RightMargin
+    ' O recuo à direita deve ser ZERO para alinhar com a margem direita
+    rightMarginPoints = 0
 
     ' Process paragraphs in reverse to avoid issues with inserted line breaks
     For i = doc.Paragraphs.Count To 1 Step -1
@@ -483,6 +483,8 @@ Private Sub ApplyFontAndParagraph(doc As Document)
             With para.Format
                 .LineSpacingRule = wdLineSpacingMultiple
                 .LineSpacing = LINE_SPACING
+                
+                ' RECUO À DIREITA ZERO - alinha com a margem direita
                 .RightIndent = rightMarginPoints
                 .SpaceBefore = 0
                 .SpaceAfter = 0
@@ -512,6 +514,7 @@ Private Sub ApplyFontAndParagraph(doc As Document)
     Next i
     
     LogMessage "Formatação concluída: " & formattedCount & " parágrafos formatados, " & skippedCount & " parágrafos com imagens ignorados", LOG_LEVEL_INFO
+    LogMessage "Recuo à direita definido como ZERO para alinhamento com margem direita", LOG_LEVEL_INFO
     Exit Sub
     
 ErrorHandler:
@@ -696,25 +699,24 @@ Private Sub InsertFooterStamp(doc As Document)
     Dim footer As HeaderFooter
     Dim rng As Range
     Dim sectionsProcessed As Long
-    Dim totalPages As Long
+    Dim fieldCode As String
 
     LogMessage "Inserindo numeração de página no rodapé", LOG_LEVEL_INFO
-    
-    ' Calculate total pages once for the entire document
-    totalPages = doc.ComputeStatistics(wdStatisticPages)
-    LogMessage "Total de páginas do documento: " & totalPages, LOG_LEVEL_INFO
+
+    ' Define o código de campo exato conforme especificado
+    fieldCode = "{PAGE  \* Arabic  \* MERGEFORMAT}-{NUMPAGES  \* Arabic  \* MERGEFORMAT}"
 
     For Each sec In doc.Sections
         Set footer = sec.Footers(wdHeaderFooterPrimary)
         If footer.Exists Then
             footer.LinkToPrevious = False
-            footer.Range.Delete ' Clear previous content
-            
             Set rng = footer.Range
+            
+            ' Clear previous content completely
+            rng.Delete
             
             ' Set basic formatting for the footer range
             With rng
-                .Text = "" ' Ensure clean start
                 .Font.Name = STANDARD_FONT
                 .Font.Size = FOOTER_FONT_SIZE
                 .Font.Bold = False
@@ -724,31 +726,26 @@ Private Sub InsertFooterStamp(doc As Document)
                 .ParagraphFormat.LineSpacingRule = wdLineSpaceSingle
             End With
             
-            ' Insert page number field
-            rng.Fields.Add rng, wdFieldPage, "", False
+            ' Insert the exact field code
+            rng.Text = fieldCode
             
-            ' Insert hyphen
-            rng.InsertAfter "-"
-            rng.Collapse wdCollapseEnd
+            ' Convert text to field
+            rng.Fields.Add rng, wdFieldEmpty, fieldCode, False
             
-            ' Insert total pages
-            rng.Text = CStr(totalPages)
+            ' Update the field to show correct values
+            rng.Fields.Update
             
-            ' Ensure single line
-            If Len(rng.Text) > 20 Then ' Reasonable limit for page numbers
-                rng.Text = Left(rng.Text, 20)
-            End If
-            
-            ' Remove any paragraph marks that might create extra lines
-            rng.Text = Replace(rng.Text, Chr(13), "")
-            rng.Text = Replace(rng.Text, Chr(7), "")
+            ' Ensure no bold formatting in footer - usando o range diretamente
+            rng.Font.Bold = False
+            rng.Font.Name = STANDARD_FONT
+            rng.Font.Size = FOOTER_FONT_SIZE
             
             sectionsProcessed = sectionsProcessed + 1
             LogMessage "Rodapé formatado na seção " & sectionsProcessed, LOG_LEVEL_INFO
         End If
     Next sec
 
-    LogMessage "Numeração de página inserida em " & sectionsProcessed & " seções. Formato: [página atual]-[total: " & totalPages & "]", LOG_LEVEL_INFO
+    LogMessage "Numeração de página inserida em " & sectionsProcessed & " seções com o código de campo exato", LOG_LEVEL_INFO
     Exit Sub
 
 ErrorHandler:
@@ -886,6 +883,5 @@ Private Sub RestoreDefaultSettings()
     SetAppState True
     Application.ScreenUpdating = True
     Application.DisplayAlerts = wdAlertsAll
-    Application.EnableEvents = True
     Application.StatusBar = ""
 End Sub
