@@ -90,7 +90,7 @@ Private Const FOOTER_FONT_SIZE As Long = 9
 Private Const LINE_SPACING As Single = 14
 
 ' Margin constants in centimeters
-Private Const TOP_MARGIN_CM As Double = 4.7
+Private Const TOP_MARGIN_CM As Double = 4.6
 Private Const BOTTOM_MARGIN_CM As Double = 2
 Private Const LEFT_MARGIN_CM As Double = 3
 Private Const RIGHT_MARGIN_CM As Double = 3
@@ -206,7 +206,10 @@ Public Sub PadronizarDocumentoMain()
     Dim executionTime As String
     executionTime = Format(Now - executionStartTime, "nn:ss")
     LogMessage "??  Tempo total de execução: " & executionTime, LOG_LEVEL_INFO
-    
+
+    ' Exibir mensagem de conclusão ao final do processamento
+    ShowCompletionMessage
+
 CleanUp:
     ' Limpeza segura com tratamento de erro individual
     SafeCleanup
@@ -710,13 +713,13 @@ End Function
 '================================================================================
 Private Function RemoveLeadingBlankLinesAndCheckString(doc As Document) As Boolean
     On Error GoTo ErrorHandler
-    
+
     Dim para As Paragraph
     Dim deletedCount As Long
     Dim firstLineText As String
-    
+
     LogMessage "?? Removendo linhas em branco iniciais e verificando string obrigatória", LOG_LEVEL_INFO
-    
+
     ' Safely remove leading blank paragraphs
     Do While doc.Paragraphs.Count > 0
         Set para = doc.Paragraphs(1)
@@ -734,49 +737,46 @@ Private Function RemoveLeadingBlankLinesAndCheckString(doc As Document) As Boole
             Exit Do
         End If
     Loop
-    
+
     LogMessage "?? Total de linhas em branco removidas: " & deletedCount, LOG_LEVEL_INFO
-    
+
     ' Check if document has at least one paragraph after removal
     If doc.Paragraphs.Count = 0 Then
-        LogMessage "? Documento vazio após remoção de linhas em branco", LOG_LEVEL_ERROR
+        LogMessage "? Documento vazio após a remoção das linhas em branco iniciais", LOG_LEVEL_ERROR
         MsgBox "O documento está vazio após a remoção das linhas em branco iniciais.", vbExclamation, "Documento Vazio"
         RemoveLeadingBlankLinesAndCheckString = False
         Exit Function
     End If
-    
+
     ' Get the text of the first line (first paragraph)
     firstLineText = doc.Paragraphs(1).Range.Text
     LogMessage "?? Texto da primeira linha: '" & firstLineText & "'", LOG_LEVEL_INFO
-    
+
+    ' Formatar a primeira linha: maiúscula, negrito e sublinhado
+    With doc.Paragraphs(1).Range
+        .Text = UCase(.Text)
+        .Font.Bold = True
+        .Font.Underline = wdUnderlineSingle
+    End With
+
     ' Check for the exact string (case-sensitive)
     If InStr(1, firstLineText, REQUIRED_STRING, vbBinaryCompare) = 0 Then
         ' String not found - show warning message
-        LogMessage "??  String obrigatória não encontrada na primeira linha: '" & REQUIRED_STRING & "'", LOG_LEVEL_WARNING
-        
-        Dim response As VbMsgBoxResult
-        response = MsgBox("ATENÇÃO: Não foi encontrada a string obrigatória exata:" & vbCrLf & vbCrLf & _
-                         "'" & REQUIRED_STRING & "'" & vbCrLf & vbCrLf & _
-                         "Texto encontrado na primeira linha: '" & firstLineText & "'" & vbCrLf & vbCrLf & _
-                         "Deseja continuar com a formatação mesmo assim?", _
-                         vbExclamation + vbYesNo, "String Obrigatória Não Encontrada")
-        
-        If response = vbNo Then
-            LogMessage "??  Usuário cancelou a formatação devido à string obrigatória não encontrada", LOG_LEVEL_WARNING
-            MsgBox "Formatação cancelada pelo usuário.", vbInformation, "Operação Cancelada"
-            formattingCancelled = True
-            RemoveLeadingBlankLinesAndCheckString = False
-        Else
-            LogMessage "??  Usuário optou por continuar apesar da string obrigatória não encontrada", LOG_LEVEL_WARNING
-            RemoveLeadingBlankLinesAndCheckString = True
-        End If
+        LogMessage "??  String obrigatória exata não encontrada na primeira linha: '" & REQUIRED_STRING & "'", LOG_LEVEL_WARNING
+
+        MsgBox "ATENÇÃO: " & vbCrLf & "String obrigatória exata não encontrada na primeira linha:" & vbCrLf & vbCrLf & _
+               "'" & REQUIRED_STRING & "'", _
+               vbExclamation, "String Obrigatória Não Encontrada"
+
+        LogMessage "??  Usuário informado sobre ausência da string obrigatória, prosseguindo", LOG_LEVEL_WARNING
+        RemoveLeadingBlankLinesAndCheckString = True
     Else
         LogMessage "? String obrigatória encontrada com sucesso: '" & REQUIRED_STRING & "'", LOG_LEVEL_INFO
         RemoveLeadingBlankLinesAndCheckString = True
     End If
-    
+
     Exit Function
-    
+
 ErrorHandler:
     LogMessage "? Erro durante verificação de string obrigatória: " & Err.Description, LOG_LEVEL_ERROR
     RemoveLeadingBlankLinesAndCheckString = False
@@ -830,13 +830,14 @@ Private Function PreviousFormatting(doc As Document) As Boolean
         Exit Function
     End If
     
+    ' Save document desativated for safety warranty at the moment
     ' Save changes
-    If doc.Path <> "" Then
-        doc.Save
-        LogMessage "?? Documento salvo após formatação", LOG_LEVEL_INFO
-    Else
-        LogMessage "??  Documento não salvo (sem caminho especificado)", LOG_LEVEL_WARNING
-    End If
+    'If doc.Path <> "" Then
+        'doc.Save
+    '    LogMessage "?? Documento salvo após formatação", LOG_LEVEL_INFO
+    'Else
+    '    LogMessage "??  Documento não salvo (sem caminho especificado)", LOG_LEVEL_WARNING
+    'End If
 
     PreviousFormatting = True
     Exit Function
@@ -887,61 +888,86 @@ Private Function ApplyFontAndParagraph(doc As Document) As Boolean
     Dim i As Long
     Dim formattedCount As Long
     Dim skippedCount As Long
+    Dim paraText As String
+    Dim prevPara As Paragraph
+    Dim normText As String
 
     LogMessage "?? Aplicando formatação de fonte e parágrafo", LOG_LEVEL_INFO
 
-    ' O recuo à direita deve ser ZERO para alinhar com a margem direita
     rightMarginPoints = 0
 
-    ' Process paragraphs in reverse to avoid issues with inserted line breaks
     For i = doc.Paragraphs.Count To 1 Step -1
         Set para = doc.Paragraphs(i)
         hasInlineImage = False
 
-        ' Check if paragraph contains any inline image
         If para.Range.InlineShapes.Count > 0 Then
             hasInlineImage = True
             skippedCount = skippedCount + 1
         End If
 
-        ' Skip formatting if inline image is present
         If Not hasInlineImage Then
-            ' Apply font formatting
-            With para.Range.Font
-                .Name = STANDARD_FONT
-                .size = STANDARD_FONT_SIZE
-                .Bold = False
-                .Italic = False
-                .Underline = 0
-                .Color = wdColorAutomatic
-            End With
+            ' Eliminar espaços duplos em loop até restar apenas espaços únicos
+            Do While InStr(para.Range.Text, "  ") > 0
+                para.Range.Text = Replace(para.Range.Text, "  ", " ")
+            Loop
 
-            ' Apply paragraph formatting
+            ' Normalização do texto para comparação
+            paraText = Trim(LCase(Replace(Replace(Replace(para.Range.Text, ".", ""), ",", ""), ";", "")))
+            paraText = Replace(paraText, vbCr, "")
+            paraText = Replace(paraText, vbLf, "")
+            paraText = Replace(paraText, " ", "")
+
+            ' Verifica se é "justificativa" ou "anexo"
+            If paraText = "justificativa" Or paraText = "anexo" Then
+                para.Range.Font.Bold = True
+            Else
+                With para.Range.Font
+                    .Name = STANDARD_FONT
+                    .size = STANDARD_FONT_SIZE
+                    .Bold = False
+                    .Italic = False
+                    .Underline = 0
+                    .Color = wdColorAutomatic
+                End With
+            End If
+
+            ' Verifica se o próximo parágrafo é "-vereador-"
+            If i < doc.Paragraphs.Count Then
+                Set prevPara = doc.Paragraphs(i + 1)
+                normText = Trim(LCase(prevPara.Range.Text))
+                normText = Replace(normText, ".", "")
+                normText = Replace(normText, ",", "")
+                normText = Replace(normText, ";", "")
+                normText = Replace(normText, "-", "")
+                normText = Replace(normText, vbCr, "")
+                normText = Replace(normText, vbLf, "")
+                normText = Replace(normText, " ", "")
+                If normText = "vereador" Then
+                    para.Range.Font.Bold = True
+                End If
+            End If
+
             With para.Format
                 .LineSpacingRule = wdLineSpacingMultiple
                 .LineSpacing = LINE_SPACING
-                
-                ' RECUO À DIREITA ZERO - alinha com a margem direita
                 .RightIndent = rightMarginPoints
                 .SpaceBefore = 0
                 .SpaceAfter = 0
 
-                ' If paragraph is centered, indents should be 0
                 If para.Alignment = wdAlignParagraphCenter Then
                     .LeftIndent = 0
                     .FirstLineIndent = 0
                 Else
-                    ' First line indentation logic
                     currentIndent = .FirstLineIndent
-                    If currentIndent <= CentimetersToPoints(0.06) Then
-                        .FirstLineIndent = CentimetersToPoints(0.25)
-                    ElseIf currentIndent > CentimetersToPoints(0.06) Then
-                        .FirstLineIndent = CentimetersToPoints(0.9)
+                    If currentIndent <= CentimetersToPoints(6) Then
+                        .FirstLineIndent = CentimetersToPoints(2.5)
+                    ElseIf currentIndent > CentimetersToPoints(6) Then
+                        .FirstLineIndent = CentimetersToPoints(9.5)
+                        .LeftIndent = CentimetersToPoints(9.5)
                     End If
                 End If
             End With
 
-            ' Justify left-aligned paragraphs
             If para.Alignment = wdAlignParagraphLeft Then
                 para.Alignment = wdAlignParagraphJustify
             End If
@@ -954,7 +980,7 @@ Private Function ApplyFontAndParagraph(doc As Document) As Boolean
     LogMessage "? Recuo à direita definido como ZERO para alinhamento com margem direita", LOG_LEVEL_INFO
     ApplyFontAndParagraph = True
     Exit Function
-    
+
 ErrorHandler:
     LogMessage "? Erro ao aplicar formatação de fonte e parágrafo: " & Err.Description, LOG_LEVEL_ERROR
     ApplyFontAndParagraph = False
@@ -1159,20 +1185,23 @@ Private Function InsertFooterStamp(doc As Document) As Boolean
             ' Limpar conteúdo anterior
             rng.Delete
             
-            ' Adicionar o campo PAGE
-            rng.Collapse wdCollapseEnd
-            rng.Fields.Add rng, wdFieldPage
+            ' Primeiro, inserir o texto estático "p. "
+            'rng.Text = " - "
             
-            ' Adicionar o hífen
-            rng.Collapse wdCollapseEnd
+            ' Mover o range para depois do "p. " e inserir o campo da PÁGINA ATUAL
+            Set rng = footer.Range
+            rng.Collapse Direction:=wdCollapseEnd
+            rng.Fields.Add Range:=rng, Type:=wdFieldPage
+            
+            ' Inserir o texto estático " de " após o campo da página
+            Set rng = footer.Range
+            rng.Collapse Direction:=wdCollapseEnd
             rng.Text = "-"
             
-            ' Adicionar o campo NUMPAGES
-            rng.Collapse wdCollapseEnd
-            rng.Fields.Add rng, wdFieldNumPages
-            
-            ' Atualizar todos os campos no rodapé
-            footer.Range.Fields.Update
+            ' Mover o range para depois do " de " e inserir o campo do TOTAL DE PÁGINAS
+            Set rng = footer.Range
+            rng.Collapse Direction:=wdCollapseEnd
+            rng.Fields.Add Range:=rng, Type:=wdFieldNumPages ' *** CORREÇÃO AQUI ***
             
             ' Aplicar formatação final a todo o rodapé
             With footer.Range
@@ -1180,6 +1209,7 @@ Private Function InsertFooterStamp(doc As Document) As Boolean
                 .Font.size = FOOTER_FONT_SIZE
                 .Font.Bold = False
                 .ParagraphFormat.Alignment = wdAlignParagraphCenter
+                .Fields.Update ' Atualizar todos os campos para mostrar os números
             End With
             
             sectionsProcessed = sectionsProcessed + 1
@@ -1554,4 +1584,58 @@ Private Sub ShowCompletionMessage()
            "? Numeração de páginas configurada" & vbCrLf & vbCrLf & _
            "O documento está pronto para uso.", _
            vbInformation + vbOKOnly, "Padronização Concluída"
+End Sub
+
+'================================================================================
+' VERIFICA SE A DATA DO DIA ATUAL, EM EXTENSO, ESTÁ NO FINAL DE ALGUM PARÁGRAFO
+'================================================================================
+Private Function DataAtualExtensoNoFinal(doc As Document) As Boolean
+    On Error GoTo ErrorHandler
+
+    Dim i As Long
+    Dim para As Paragraph
+    Dim textoPara As String
+    Dim dataHoje As Date
+    Dim dataExtenso As String
+    Dim variantes() As String
+    Dim v As Variant
+    Dim encontrado As Boolean
+
+    dataHoje = Date
+
+    ' Monta possíveis variações da data em extenso
+    dataExtenso = Format(dataHoje, "d \de mmmm \de yyyy")
+    ReDim variantes(2)
+    variantes(0) = dataExtenso
+    variantes(1) = Format(dataHoje, "d 'de' mmmm 'de' yyyy")
+    variantes(2) = Format(dataHoje, "dd 'de' mmmm 'de' yyyy")
+
+    encontrado = False
+
+    For i = 1 To doc.Paragraphs.Count
+        textoPara = Trim(doc.Paragraphs(i).Range.Text)
+        For Each v In variantes
+            If textoPara Like "*" & v Then
+                encontrado = True
+                Exit For
+            End If
+        Next v
+        If encontrado Then Exit For
+    Next i
+
+    DataAtualExtensoNoFinal = encontrado
+    Exit Function
+
+ErrorHandler:
+    DataAtualExtensoNoFinal = False
+End Function
+
+' Chame esta rotina após a formatação do documento
+Private Sub VerificarDataExtensoFinalParagrafo(doc As Document)
+    If Not DataAtualExtensoNoFinal(doc) Then
+        MsgBox "ATENÇÃO:" & vbCrLf & vbCrLf & _
+               "A data do dia atual, em extenso, NÃO foi localizada ao final de nenhum parágrafo do documento." & vbCrLf & vbCrLf & _
+               "Verifique se a data está presente e corretamente escrita.", _
+               vbExclamation, "Data Não Localizada"
+    End If
 End Sub
