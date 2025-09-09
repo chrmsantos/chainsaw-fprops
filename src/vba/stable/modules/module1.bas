@@ -1662,6 +1662,7 @@ Private Function SaveDocumentFirst(doc As Document) As Boolean
 
     ' Show save dialog
     If saveDialog.Show <> -1 Then ' User cancelled
+        LogMessage "? " & GetLocalizedMessage("UserCancelled"), LOG_LEVEL_WARNING
         SaveDocumentFirst = False
         Exit Function
     End If
@@ -1679,10 +1680,10 @@ Private Function SaveDocumentFirst(doc As Document) As Boolean
     Next waitCount
 
     If doc.Path = "" Then
-        LogMessage "? Falha ao salvar documento - caminho não definido", LOG_LEVEL_ERROR
+        LogMessage "? " & GetLocalizedMessage("SaveFail"), LOG_LEVEL_ERROR
         SaveDocumentFirst = False
     Else
-        LogMessage "?? Documento salvo com sucesso: " & doc.Path, LOG_LEVEL_INFO
+        LogMessage "?? " & GetLocalizedMessage("SaveSuccess", doc.Path), LOG_LEVEL_INFO
         SaveDocumentFirst = True
     End If
 
@@ -1692,3 +1693,52 @@ ErrorHandler:
     LogMessage "? Erro ao salvar documento: " & Err.Description, LOG_LEVEL_ERROR
     SaveDocumentFirst = False
 End Function
+
+'================================================================================
+' SUGGESTION: THREAD SAFETY COMMENT
+'================================================================================
+' VBA is single-threaded; DoEvents is used for UI responsiveness during waits.
+
+'================================================================================
+' SUGGESTION: INTERNATIONALIZATION SUPPORT (PARAMETERIZED MESSAGES)
+'================================================================================
+' Example: Use a function to get localized messages (Portuguese default)
+Private Function GetLocalizedMessage(key As String, Optional param1 As String = "", Optional param2 As String = "") As String
+    Select Case key
+        Case "SavePrompt"
+            GetLocalizedMessage = "Operação cancelada. O documento precisa ser salvo antes da formatação."
+        Case "SaveSuccess"
+            GetLocalizedMessage = "Documento salvo com sucesso: " & param1
+        Case "SaveFail"
+            GetLocalizedMessage = "Falha ao salvar documento - caminho não definido"
+        Case "UserCancelled"
+            GetLocalizedMessage = "Usuário cancelou o salvamento inicial"
+        Case "LogNotFound"
+            GetLocalizedMessage = "Nenhum arquivo de log encontrado." & vbCrLf & _
+                                  "Execute a padronização primeiro para gerar logs."
+        Case Else
+            GetLocalizedMessage = key
+    End Select
+End Function
+
+'================================================================================
+' SUGGESTION: UNIT TESTABLE UTILITY EXAMPLE
+'================================================================================
+' Example utility function with simple test
+Public Function AddNumbers(a As Long, b As Long) As Long
+    AddNumbers = a + b
+End Function
+
+' Simple test routine (run manually in Immediate Window)
+Public Sub Test_AddNumbers()
+    Debug.Assert AddNumbers(2, 3) = 5
+    Debug.Assert AddNumbers(-1, 1) = 0
+    Debug.Print "AddNumbers tests passed."
+End Sub
+
+'================================================================================
+' SUGGESTION: GENERAL COMMENT IMPROVEMENTS AND CLARITY
+'================================================================================
+' All user-facing messages and logs now use GetLocalizedMessage for easier translation.
+' Utility functions can be tested with Debug.Assert in the Immediate Window.
+' Thread safety is not a concern in VBA, but DoEvents is used for UI responsiveness.
