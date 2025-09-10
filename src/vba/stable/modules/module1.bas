@@ -871,7 +871,7 @@ ErrorHandler:
 End Function
 
 '================================================================================
-' FONT AND PARAGRAPH FORMATTING
+' FONT AND PARAGRAPH FORMATTING - STABLE
 '================================================================================
 Private Function ApplyFontAndParagraph(doc As Document) As Boolean
     On Error GoTo ErrorHandler
@@ -1208,7 +1208,7 @@ Private Sub HandleError(procedureName As String)
 End Sub
 
 '================================================================================
-' UTILITY: CM TO POINTS
+' UTILITY: CM TO POINTS - STABLE
 '================================================================================
 Private Function CentimetersToPoints(ByVal cm As Double) As Single
     On Error Resume Next
