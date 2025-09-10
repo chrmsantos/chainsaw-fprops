@@ -112,7 +112,7 @@ Private Const LOG_LEVEL_WARNING As Long = 2
 Private Const LOG_LEVEL_ERROR As Long = 3
 
 ' Required string constant
-Private Const REQUIRED_STRING As String = " Nº $NUMERO$/$ANO$"
+Private Const REQUIRED_STRING As String = "$NUMERO$/$ANO$"
 
 ' Timeout constants
 Private Const MAX_RETRY_ATTEMPTS As Long = 3
@@ -763,13 +763,6 @@ Private Function RemoveLeadingBlankLinesAndCheckString(doc As Document) As Boole
     firstLineText = doc.Paragraphs(1).Range.Text
     LogMessage "?? Texto da primeira linha: '" & firstLineText & "'", LOG_LEVEL_INFO
 
-    ' Formatar a primeira linha: maiúscula, negrito e sublinhado
-    With doc.Paragraphs(1).Range
-        .Text = UCase(.Text)
-        .Font.Bold = True
-        .Font.Underline = wdUnderlineSingle
-    End With
-
     ' Check for the exact string (case-sensitive)
     If InStr(1, firstLineText, REQUIRED_STRING, vbBinaryCompare) = 0 Then
         ' String not found - show warning message
@@ -885,7 +878,8 @@ Private Function ApplyFontAndParagraph(doc As Document) As Boolean
     
     Dim para As Paragraph
     Dim hasInlineImage As Boolean
-    Dim currentIndent As Single
+    Dim paragraphIndent As Single
+    Dim firstIndent As Single
     Dim rightMarginPoints As Single
     Dim i As Long
     Dim formattedCount As Long
@@ -930,11 +924,15 @@ Private Function ApplyFontAndParagraph(doc As Document) As Boolean
                     .LeftIndent = 0
                     .FirstLineIndent = 0
                 Else
-                    currentIndent = .FirstLineIndent
-                    If currentIndent <= CentimetersToPoints(5) Then
-                        .FirstLineIndent = CentimetersToPoints(1.5)
-                    ElseIf currentIndent > CentimetersToPoints(5) Then
+                    firstIndent = .FirstLineIndent
+                    paragraphIndent = .LeftIndent
+                    ' Parágrafos com recuo >= 5 cm (ementa presumida)
+                    If paragraphIndent >= CentimetersToPoints(5) Then
                         .LeftIndent = CentimetersToPoints(9.5)
+                    ' Parágragos com recuo entre 0 e 5 cm (texto corrido presumido)
+                    ' Primeira linha
+                    ElseIf firstIndent < CentimetersToPoints(5) Then
+                        .FirstLineIndent = CentimetersToPoints(1.5)
                     End If
                 End If
             End With
@@ -1155,9 +1153,6 @@ Private Function InsertFooterStamp(doc As Document) As Boolean
             
             ' Limpar conteúdo anterior
             rng.Delete
-            
-            ' Primeiro, inserir o texto estático "p. "
-            'rng.Text = " - "
             
             ' Mover o range para depois do "p. " e inserir o campo da PÁGINA ATUAL
             Set rng = footer.Range
