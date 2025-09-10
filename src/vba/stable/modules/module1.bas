@@ -932,6 +932,7 @@ Private Function ApplyFontAndParagraph(doc As Document) As Boolean
                     ' Parágragos com recuo entre 0 e 5 cm (texto corrido presumido)
                     ' Primeira linha
                     ElseIf firstIndent < CentimetersToPoints(5) Then
+                        .LeftIndent = CentimetersToPoints(0)
                         .FirstLineIndent = CentimetersToPoints(1.5)
                     End If
                 End If
