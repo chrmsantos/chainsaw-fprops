@@ -354,7 +354,7 @@ ErrorHandler:
 End Function
 
 '================================================================================
-' UNDO GROUP MANAGEMENT - COM PROTEÇÃO
+' UNDO GROUP MANAGEMENT - COM PROTEÇÃO - STABLE
 '================================================================================
 Private Sub StartUndoGroup(groupName As String)
     On Error GoTo ErrorHandler
@@ -841,15 +841,6 @@ Private Function PreviousFormatting(doc As Document) As Boolean
         Exit Function
     End If
     
-    ' Save document desativated for safety warranty at the moment
-    ' Save changes
-    'If doc.Path <> "" Then
-        'doc.Save
-    '    LogMessage "?? Documento salvo após formatação", LOG_LEVEL_INFO
-    'Else
-    '    LogMessage "??  Documento não salvo (sem caminho especificado)", LOG_LEVEL_WARNING
-    'End If
-
     PreviousFormatting = True
     Exit Function
 
@@ -859,7 +850,7 @@ ErrorHandler:
 End Function
 
 '================================================================================
-' PAGE SETUP
+' PAGE SETUP - STABLE
 '================================================================================
 Private Function ApplyPageSetup(doc As Document) As Boolean
     On Error GoTo ErrorHandler
@@ -928,36 +919,6 @@ Private Function ApplyFontAndParagraph(doc As Document) As Boolean
             paraText = Replace(paraText, vbLf, "")
             paraText = Replace(paraText, " ", "")
 
-            ' Verifica se é "justificativa" ou "anexo"
-            If paraText = "justificativa" Or paraText = "anexo" Then
-                para.Range.Font.Bold = True
-            Else
-                With para.Range.Font
-                    .Name = STANDARD_FONT
-                    .size = STANDARD_FONT_SIZE
-                    .Bold = False
-                    .Italic = False
-                    .Underline = 0
-                    .Color = wdColorAutomatic
-                End With
-            End If
-
-            ' Verifica se o próximo parágrafo é "-vereador-"
-            If i < doc.Paragraphs.Count Then
-                Set prevPara = doc.Paragraphs(i + 1)
-                normText = Trim(LCase(prevPara.Range.Text))
-                normText = Replace(normText, ".", "")
-                normText = Replace(normText, ",", "")
-                normText = Replace(normText, ";", "")
-                normText = Replace(normText, "-", "")
-                normText = Replace(normText, vbCr, "")
-                normText = Replace(normText, vbLf, "")
-                normText = Replace(normText, " ", "")
-                If normText = "vereador" Then
-                    para.Range.Font.Bold = True
-                End If
-            End If
-
             With para.Format
                 .LineSpacingRule = wdLineSpacingMultiple
                 .LineSpacing = LINE_SPACING
@@ -970,10 +931,9 @@ Private Function ApplyFontAndParagraph(doc As Document) As Boolean
                     .FirstLineIndent = 0
                 Else
                     currentIndent = .FirstLineIndent
-                    If currentIndent <= CentimetersToPoints(6) Then
-                        .FirstLineIndent = CentimetersToPoints(2.5)
-                    ElseIf currentIndent > CentimetersToPoints(6) Then
-                        .FirstLineIndent = CentimetersToPoints(9.5)
+                    If currentIndent <= CentimetersToPoints(5) Then
+                        .FirstLineIndent = CentimetersToPoints(1.5)
+                    ElseIf currentIndent > CentimetersToPoints(5) Then
                         .LeftIndent = CentimetersToPoints(9.5)
                     End If
                 End If
@@ -998,7 +958,7 @@ ErrorHandler:
 End Function
 
 '================================================================================
-' ENABLE HYPHENATION
+' ENABLE HYPHENATION - STABLE
 '================================================================================
 Private Function EnableHyphenation(doc As Document) As Boolean
     On Error GoTo ErrorHandler
@@ -1024,7 +984,7 @@ ErrorHandler:
 End Function
 
 '================================================================================
-' REMOVE WATERMARK
+' REMOVE WATERMARK - STABLE 
 '================================================================================
 Private Function RemoveWatermark(doc As Document) As Boolean
     On Error GoTo ErrorHandler
@@ -1082,7 +1042,7 @@ ErrorHandler:
 End Function
 
 '================================================================================
-' INSERT HEADER IMAGE
+' INSERT HEADER IMAGE - STABLE
 '================================================================================
 Private Function InsertHeaderStamp(doc As Document) As Boolean
     On Error GoTo ErrorHandler
@@ -1174,7 +1134,7 @@ ErrorHandler:
 End Function
 
 '================================================================================
-' INSERT FOOTER PAGE NUMBERS
+' INSERT FOOTER PAGE NUMBERS - STABLE
 '================================================================================
 Private Function InsertFooterStamp(doc As Document) As Boolean
     On Error GoTo ErrorHandler
