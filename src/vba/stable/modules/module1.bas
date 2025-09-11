@@ -1,7 +1,93 @@
-'Código de Padronização de Documentos Word
+' =============================================================================
+' Projeto: LegisTab
+' Versão: 2.0.1-stable
+' Data: 2025-09-11
+' =============================================================================
+' Descrição:
+' LegisTab é uma solução open source em VBA para padronização e automação
+' avançada de documentos no Microsoft Word. Este módulo implementa rotinas
+' robustas para formatação, segurança, backup, logging detalhado e interface
+' aprimorada para o usuário, visando garantir consistência, rastreabilidade
+' e facilidade de uso em ambientes institucionais e profissionais.
 '
-'VERSÃO FINAL CONSOLIDADA
+' Autor: Christian Martin dos Santos
+' Contato: +55-19-98800-1736
+' Repositório: github.com/chrmsantos
 '
+' =============================================================================
+' Licença:
+' Este código VBA é licenciado sob a Licença Apache. O uso, modificação e
+' distribuição do código são permitidos conforme os termos da licença Apache.
+' Importante: Esta licença se aplica exclusivamente ao código VBA aqui
+' disponibilizado. O Microsoft Word, plataforma necessária para execução
+' deste código, é um software proprietário e requer licença própria.
+' Consulte a documentação oficial da Microsoft para detalhes sobre o uso
+' e licenciamento do Word.
+' =============================================================================
+'
+' Funcionalidades Principais:
+'
+' • Segurança e Robustez:
+'   - Sistema de recuperação de emergência para evitar falhas críticas do Word.
+'   - Tratamento de erros abrangente em todas as rotinas.
+'   - Verificações automáticas de espaço em disco, proteção e integridade do documento.
+'   - Backup automático do documento antes de alterações críticas.
+'
+' • Logging Detalhado:
+'   - Geração de logs com timestamps, níveis de severidade e metadados do sistema.
+'   - Registro de todas as etapas do processamento e mensagens de status.
+'   - Logs salvos em arquivos externos para auditoria e suporte.
+'
+' • Interface e Mensagens Aprimoradas:
+'   - Mensagens claras e informativas para o usuário, com instruções de recuperação.
+'   - Detalhamento técnico para suporte e diagnóstico.
+'   - Status dinâmico na barra do Word durante o processamento.
+'
+' • Padronização e Formatação:
+'   - Ajuste automático de margens, espaçamentos, fonte e parágrafos.
+'   - Inserção de cabeçalho institucional com imagem personalizada.
+'   - Numeração automática de páginas no rodapé.
+'   - Remoção de marcas d'água e linhas em branco iniciais.
+'   - Verificação de strings obrigatórias e estrutura do documento.
+'
+' • Performance e Eficiência:
+'   - Gerenciamento eficiente de memória e recursos.
+'   - Processamento em lote seguro, com timeouts e retries.
+'   - Undo customizado para reversão de operações.
+'
+' • Utilitários Adicionais:
+'   - Abertura rápida de logs e backups.
+'   - Testes unitários simples para funções auxiliares.
+'   - Suporte a internacionalização de mensagens.
+'
+' =============================================================================
+
+' =============================================================================
+' LEGISTAB - FERRAMENTA DE PADRONIZAÇÃO DE DOCUMENTOS
+' =============================================================================
+' Projeto Open Source para Microsoft Word
+' 
+' Ferramenta de Padronização de Documentos para Microsoft Word
+' Versão Estável com Segurança Robusta e Logging Detalhado
+' =============================================================================
+' Versão Estável com Segurança Robusta e Logging Detalhado
+' ==============================================================================
+' ===========================================================================
+
+' Projeto Open Source para Microsoft Word
+' LegisTab
+' Ferramenta de Padronização de Documentos para Microsoft Word
+' Versão Estável com Segurança Robusta e Logging Detalhado
+' ===========================================================================
+' ============================================================================
+' Descrição: Este código VBA para Microsoft Word implementa um sistema
+' completo de padronização de documentos com foco em segurança, logging
+' Autor: Christian Martin dos Santos
+' Contato: +55-19-98800-1736
+' Repositório: github.com/chrmsantos
+' Data: 2024-06-27
+
+
 'CARACTERÍSTICAS:
 '
 '1. Segurança Robusta:
