@@ -228,24 +228,26 @@ Public Sub PadronizarDocumentoMain()
     ' Executar processamento principal
     If Not PreviousFormatting(doc) Then
         LogMessage "??  Processamento principal falhou - execução interrompida", LOG_LEVEL_ERROR
+        ShowCompletionMessage False ' <-- Adicionado: mensagem de conclusão parcial
         GoTo CleanUp
     End If
-    
+
     If formattingCancelled Then
         LogMessage "??  Processamento cancelado pelo usuário", LOG_LEVEL_INFO
+        ShowCompletionMessage False ' <-- Adicionado: mensagem de conclusão parcial
         GoTo CleanUp
     End If
-    
+
     ' Sucesso na execução
     Application.StatusBar = "? Documento padronizado com sucesso!"
     LogMessage "? PROCESSAMENTO CONCLUÍDO COM SUCESSO", LOG_LEVEL_INFO
-    
+
     Dim executionTime As String
     executionTime = Format(Now - executionStartTime, "nn:ss")
     LogMessage "??  Tempo total de execução: " & executionTime, LOG_LEVEL_INFO
 
     ' Exibir mensagem de conclusão ao final do processamento
-    ShowCompletionMessage
+    ShowCompletionMessage True ' <-- Adicionado: mensagem de sucesso
 
 CleanUp:
     ' Limpeza segura com tratamento de erro individual
@@ -1567,17 +1569,24 @@ ErrorHandler:
 End Sub
 
 '================================================================================
-' FINAL MESSAGE - EXIBIÇÃO DE CONCLUSÃO
+' FINAL MESSAGE - EXIBIÇÃO DE CONCLUSÃO OU EXECUÇÃO PARCIAL
 '================================================================================
-Private Sub ShowCompletionMessage()
+Private Sub ShowCompletionMessage(Optional ByVal sucesso As Boolean = True)
     Dim msg As String
     Dim response As VbMsgBoxResult
 
-    msg = "Processo de padronização concluído com sucesso!" & vbCrLf & vbCrLf & _
-          "Deseja abrir o LOG da execução agora?" & vbCrLf & vbCrLf & _
-          "(Clique em 'Sim' para abrir o log ou 'Não' para apenas fechar esta mensagem.)"
+    If sucesso Then
+        msg = "Processo de padronização concluído com sucesso!" & vbCrLf & vbCrLf & _
+              "Deseja abrir o LOG da execução agora?" & vbCrLf & vbCrLf & _
+              "(Clique em 'Sim' para abrir o log ou 'Não' para apenas fechar esta mensagem.)"
+    Else
+        msg = "Processo de padronização concluído PARCIALMENTE devido a um erro." & vbCrLf & vbCrLf & _
+              "Recomenda-se verificar o LOG da execução para detalhes." & vbCrLf & vbCrLf & _
+              "Deseja abrir o LOG agora?" & vbCrLf & vbCrLf & _
+              "(Clique em 'Sim' para abrir o log ou 'Não' para apenas fechar esta mensagem.)"
+    End If
 
-    response = MsgBox(msg, vbInformation + vbYesNo, "Padronização Concluída")
+    response = MsgBox(msg, vbInformation + vbYesNo, "Padronização " & IIf(sucesso, "Concluída", "Parcial"))
 
     If response = vbYes Then
         AbrirLog
