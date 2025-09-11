@@ -12,17 +12,25 @@
 '
 ' Autor: Christian Martin dos Santos
 ' Contato: +55-19-98800-1736
-' Repositório: github.com/chrmsantos
+' Repositório: github.com/chrmsantos/LegisTab
 '
 ' =============================================================================
-' Licença:
-' Este código VBA é licenciado sob a Licença Apache. O uso, modificação e
-' distribuição do código são permitidos conforme os termos da licença Apache.
-' Importante: Esta licença se aplica exclusivamente ao código VBA aqui
-' disponibilizado. O Microsoft Word, plataforma necessária para execução
-' deste código, é um software proprietário e requer licença própria.
-' Consulte a documentação oficial da Microsoft para detalhes sobre o uso
-' e licenciamento do Word.
+' Licença do Código VBA (Apache 2.0):
+' Este código VBA está licenciado sob a Licença Apache 2.0, que permite o uso,
+' modificação e distribuição livre do código, inclusive para fins comerciais,
+' desde que sejam mantidos os avisos de direitos autorais e de licença.
+' NÃO há garantia de qualquer tipo, explícita ou implícita.
+' Para mais detalhes e o texto completo da licença, acesse:
+' https://www.apache.org/licenses/LICENSE-2.0
+'
+' =============================================================================
+' Licença do Microsoft Word:
+' O Microsoft Word é um software proprietário da Microsoft Corporation e NÃO
+' está coberto pela licença deste código. O uso do Word requer uma licença
+' válida adquirida junto à Microsoft. Consulte os termos completos de uso e
+' licenciamento do Word na documentação oficial:
+' https://www.microsoft.com/en-us/legal/intellectualproperty/copyright/default.aspx
+' https://www.microsoft.com/en-us/legal/terms-of-use
 ' =============================================================================
 '
 ' Funcionalidades Principais:
@@ -61,79 +69,6 @@
 '   - Suporte a internacionalização de mensagens.
 '
 ' =============================================================================
-
-' =============================================================================
-' LEGISTAB - FERRAMENTA DE PADRONIZAÇÃO DE DOCUMENTOS
-' =============================================================================
-' Projeto Open Source para Microsoft Word
-' 
-' Ferramenta de Padronização de Documentos para Microsoft Word
-' Versão Estável com Segurança Robusta e Logging Detalhado
-' =============================================================================
-' Versão Estável com Segurança Robusta e Logging Detalhado
-' ==============================================================================
-' ===========================================================================
-
-' Projeto Open Source para Microsoft Word
-' LegisTab
-' Ferramenta de Padronização de Documentos para Microsoft Word
-' Versão Estável com Segurança Robusta e Logging Detalhado
-' ===========================================================================
-' ============================================================================
-' Descrição: Este código VBA para Microsoft Word implementa um sistema
-' completo de padronização de documentos com foco em segurança, logging
-' Autor: Christian Martin dos Santos
-' Contato: +55-19-98800-1736
-' Repositório: github.com/chrmsantos
-' Data: 2024-06-27
-
-
-'CARACTERÍSTICAS:
-'
-'1. Segurança Robusta:
-'
-'· Sistema de recuperação de emergência
-'· Prevenção de quedas do Word
-'· Tratamento de erro em todas as funções
-'· Verificações de espaço em disco
-'· Liberação segura de recursos
-'
-'2. Logs Detalhados:
-'
-'· Timestamps precisos com emojis
-'· Metadados completos do sistema
-'· Hierarquia clara de mensagens
-'· Informações de performance
-'· Estatísticas de execução
-'
-'3. Mensagens Aprimoradas:
-'
-'· Textos claros e informativos
-'· Linguagem amigável ao usuário
-'· Instruções de recuperação
-'· Detalhes técnicos para suporte
-'
-'4. Funcionalidades Completas:
-'
-'· Formatação de fonte e parágrafo
-'· Configuração de margens e página
-'· Inserção de cabeçalho personalizado
-'· Numeração de páginas automática
-'· Sistema de backup automático
-'· Gerenciamento de logs
-'· Interface de usuário amigável
-'
-'5. Performance Otimizada:
-'
-'· Liberação controlada de memória
-'· Gerenciamento de estado eficiente
-'· Processamento em lote seguro
-'· Timeouts e retries inteligentes
-'
-'Este código representa a versão final consolidada
-'com todas as melhorias de segurança, logging detalhado
-'e robustez operacional.
-'
 
 'VBA
 Option Explicit
