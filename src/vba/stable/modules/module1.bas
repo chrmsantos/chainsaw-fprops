@@ -768,7 +768,7 @@ Private Function RemoveLeadingBlankLinesAndCheckString(doc As Document) As Boole
             deletedCount = deletedCount + 1
             LogMessage "?? Parágrafo vazio removido: " & deletedCount, LOG_LEVEL_INFO
             ' Safety check to prevent infinite loop
-            If deletedCount > 100 Then
+            If deletedCount > 10 Then
                 LogMessage "??  Limite de segurança atingido ao remover linhas em branco", LOG_LEVEL_WARNING
                 Exit Do
             End If
@@ -1577,18 +1577,18 @@ Private Sub ShowCompletionMessage(Optional ByVal sucesso As Boolean = True)
 
     If sucesso Then
         msg = "Processo de padronização concluído com sucesso!" & vbCrLf & vbCrLf & _
-              "Deseja abrir o LOG da execução agora?" & vbCrLf & vbCrLf & _
-              "(Clique em 'Sim' para abrir o log ou 'Não' para apenas fechar esta mensagem.)"
+              "Deseja fechar e prosseguir diretamente?" & vbCrLf & vbCrLf & _
+              "(Clique em 'Sim' para fechar ou 'Não' para abrir o LOG.)"        
     Else
         msg = "Processo de padronização concluído PARCIALMENTE devido a um erro." & vbCrLf & vbCrLf & _
               "Recomenda-se verificar o LOG da execução para detalhes." & vbCrLf & vbCrLf & _
-              "Deseja abrir o LOG agora?" & vbCrLf & vbCrLf & _
+              "Deseja abrir o LOG da execução agora?" & vbCrLf & vbCrLf & _
               "(Clique em 'Sim' para abrir o log ou 'Não' para apenas fechar esta mensagem.)"
     End If
 
     response = MsgBox(msg, vbInformation + vbYesNo, "Padronização " & IIf(sucesso, "Concluída", "Parcial"))
 
-    If response = vbYes Then
+    If response <> vbYes Then
         AbrirLog
     End If
 End Sub
