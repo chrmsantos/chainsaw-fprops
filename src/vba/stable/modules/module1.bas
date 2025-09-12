@@ -796,7 +796,7 @@ Private Function RemoveLeadingBlankLinesAndCheckString(doc As Document) As Boole
         ' String not found - show warning message
         LogMessage "??  String obrigatória exata não encontrada na primeira linha: '" & REQUIRED_STRING & "'", LOG_LEVEL_WARNING
 
-        MsgBox "ATENÇÃO: " & vbCrLf & "String obrigatória exata não encontrada na primeira linha:" & vbCrLf & vbCrLf & _
+        'MsgBox "ATENÇÃO: " & vbCrLf & "String obrigatória exata não encontrada na primeira linha:" & vbCrLf & vbCrLf & _
                "'" & REQUIRED_STRING & "'", _
                vbExclamation, "String Obrigatória Não Encontrada"
 
@@ -1640,7 +1640,7 @@ End Function
 ' Chame esta rotina após a formatação do documento
 Private Sub VerificarDataExtensoFinalParagrafo(doc As Document)
     If Not DataAtualExtensoNoFinal(doc) Then
-        MsgBox "ATENÇÃO:" & vbCrLf & vbCrLf & _
+        'MsgBox "ATENÇÃO:" & vbCrLf & vbCrLf & _
                "A data do dia atual, em extenso, NÃO foi localizada ao final de nenhum parágrafo do documento." & vbCrLf & vbCrLf & _
                "Verifique se a data está presente e corretamente escrita.", _
                vbExclamation, "Data Não Localizada"
