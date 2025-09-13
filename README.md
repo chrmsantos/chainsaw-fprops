@@ -39,8 +39,6 @@ O Microsoft Word é software proprietário e requer licença própria.
 ## Autor
 
 Christian Martin dos Santos  
-Contato: +55-19-98800-1736  
-Câmara Municipal de Santa Bárbara d'Oeste/SP
 
 ## Contribuição
 
