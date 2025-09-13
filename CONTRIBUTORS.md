@@ -1,73 +1,58 @@
 CONTRIBUTORES | CONTRIBUTORS
 ===============================================
-Projeto: FILLINGREVIWER
-Tipo: Arquivo Office com Macros VBA
-Licença: Apache 2.0 Modificada (Cláusula 10)
-Repositório: https://github.com/chrmsantos/FillingReviewer
-Processo Administrativo: [Nº DO PROCESSO/ÓRGÃO RESPONSÁVEL]
+
+Projeto: LegisTab  
+Tipo: Macros VBA para Microsoft Word  
+Versão: 2.0.1-stable  
+Data: 11/09/2025  
+Licença: Apache 2.0  
+Repositório: <https://github.com/chrmsantos/LegisTab>
 
 ===============================================
-CRIAÇÃO E DESENVOLVIMENTO INICIAL
+AUTOR PRINCIPAL
 -----------------------------------------------
+
 • Christian Martin dos Santos (chrmsantos)
-  - Cargo/Função: Agente Administrativo (usuário avançado do Microsoft Office)
-  - Órgão/Vinculo: Câmara Municipal de Santa Bárbara d'Oeste/SP
-  - Período: 03/2025 - Atualidade
-  - Macros Desenvolvidas:
-    * [Nome da Macro] - [Finalidade] (v1.0)
-    * [Ex.: "AutenticaDocumento" - Validação de assinaturas digitai
-  - Documentação Técnica:
-    * Manual de Implementação v[versão]
-    * Especificação de Requisitos Funcionais
+
+- Macros principais:  
+  - PadronizarDocumentoMain – Padronização e automação de documentos Word  
+  - Logging, Backup, Formatação, Cabeçalho/Rodapé, Segurança
 
 ===============================================
-REGISTRO DE CONTROLE DE VERSÕES DE MACROS
+REGISTRO DE VERSÕES
 -----------------------------------------------
-[Nome da Macro] | [Versão] | [Data] | [Responsável]
--------------------------------------------------
-[Ex.: "GeradorRelatorios"] | 2.1.3 | 15/08/2023 | Christian
-[Adicionar novas linhas conforme atualizações]
+
+Macro/Componente         | Versão     | Data        | Responsável
+-------------------------|------------|-------------|-------------
+PadronizarDocumentoMain  | 2.0.1      | 11/09/2025  | Christian
 
 ===============================================
-COLABORADORES (ordem cronológica)
+COLABORADORES
 -----------------------------------------------
-[Data] - [Nome Completo]
-  • Função: [Cargo/Tipo de Contribuição]
-  • Órgão/Instituição: [Se aplicável]
-  • Processo Relacionado: [Nº do processo]
-  • Contribuições Técnicas:
-    - [Nome da Macro/Componente]: [Descrição]
-    - [Ex.: "ModuloCriptografia": Implementação AES-256]
-  • Documentação Associada:
-    - [Título do Documento] ([Versão])
-  • Contato: [Institucional/GitHub]
+
+Nenhum colaborador registrado até o momento.
 
 ===============================================
-REGISTRO DE VALIDAÇÕES INSTITUCIONAIS
+VALIDAÇÕES INSTITUCIONAIS
 -----------------------------------------------
-[Data] - [Órgão Validador]
-  • Responsável: [Nome/Cargo]
-  • Macro Validada: [Nome/Versão]
-  • Processo: [Nº/Referência]
-  • Parecer Técnico: [Aprovado/Com ressalvas]
-  • Link do Documento: [Se aplicável]
+
+[Preencher quando houver validação institucional]
 
 ===============================================
-INSTRUÇÕES PARA ATUALIZAÇÃO
+INSTRUÇÕES DE ATUALIZAÇÃO
 -----------------------------------------------
-1. Padrão para novas contribuições:
-   Data | Nome | Macro Afetada | Processo Relacionado
-2. Atualizar simultaneamente:
-   - Este arquivo
-   - Cabeçalhos dos módulos VBA
-   - Planilha "ControleVersoes.xlsx" [Se existir]
-3. Pequenas correções: registrar na seção coletiva abaixo
+
+- Atualize este arquivo a cada nova versão ou contribuição relevante.
+- Sincronize cabeçalhos dos módulos VBA e logs de versão.
+- Para pequenas correções, registre na seção abaixo.
 
 ===============================================
-REVISÕES E ATUALIZAÇÕES MENORES
+REVISÕES E CORREÇÕES MENORES
 -----------------------------------------------
+
 [Data] - [Responsável] - [Descrição sucinta]
 -------------------------------------------------
-[Ex.: "15/08/2023 - Christian - Correção de typo na documentação"]
 
-v1.0 - [Data] - Criação do documento por Christian
+11/09/2025 - Christian - Documento simplificado e atualizado para LegisTab 2.0.1
+
+v2.0.1 - 11/09/2025 - Atualização para LegisTab por Christian

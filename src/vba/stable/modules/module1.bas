@@ -11,7 +11,6 @@
 ' e facilidade de uso em ambientes institucionais e profissionais.
 '
 ' Autor: Christian Martin dos Santos
-' Contato: +55-19-98800-1736
 ' Repositório: github.com/chrmsantos/LegisTab
 '
 ' =============================================================================
