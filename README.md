@@ -38,7 +38,7 @@ O Microsoft Word é software proprietário e requer licença própria.
 
 ## Autor
 
-Christian Martin dos Santos  
+Christian Martin dos Santos
 
 ## Contribuição
 
