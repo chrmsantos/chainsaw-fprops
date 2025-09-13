@@ -1,17 +1,17 @@
 ' =============================================================================
-' Projeto: LegisTab
+' Projeto: std-legis-docs
 ' Versão: 2.0.1-stable
 ' Data: 2025-09-11
 ' =============================================================================
 ' Descrição:
-' LegisTab é uma solução open source em VBA para padronização e automação
+' std-legis-docs é uma solução open source em VBA para padronização e automação
 ' avançada de documentos no Microsoft Word. Este módulo implementa rotinas
 ' robustas para formatação, segurança, backup, logging detalhado e interface
 ' aprimorada para o usuário, visando garantir consistência, rastreabilidade
 ' e facilidade de uso em ambientes institucionais e profissionais.
 '
 ' Autor: Christian Martin dos Santos
-' Repositório: github.com/chrmsantos/LegisTab
+' Repositório: github.com/chrmsantos/std-legis-docs
 '
 ' =============================================================================
 ' Licença do Código VBA (Apache 2.0):
@@ -26,7 +26,16 @@
 ' Licença do Microsoft Word:
 ' O Microsoft Word é um software proprietário da Microsoft Corporation e NÃO
 ' está coberto pela licença deste código. O uso do Word requer uma licença
-' válida adquirida junto à Microsoft. Consulte os termos completos de uso e
+' válida adquirida junto à Microsoft. Consulte os t' =============================================================================
+' Projeto: std-legis-docs
+' Versão: 2.0.1-stable
+' Data: 2025-09-11
+' =============================================================================
+' Consulte a documentação completa, instruções de uso, licença e histórico de
+' contribuições nos arquivos README.md e CONTRIBUTORS.md deste repositório:
+' https://github.com/chrmsantos/std-legis-docs
+' =============================================================================
+' ...existing code...ermos completos de uso e
 ' licenciamento do Word na documentação oficial:
 ' https://www.microsoft.com/en-us/legal/intellectualproperty/copyright/default.aspx
 ' https://www.microsoft.com/en-us/legal/terms-of-use
