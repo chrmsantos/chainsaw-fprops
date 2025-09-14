@@ -5,8 +5,8 @@ Projeto: LegisTab
 Tipo: Macros VBA para Microsoft Word  
 Versão: 2.0.1-stable  
 Data: 11/09/2025  
-Licença: Apache 2.0  
-Repositório: <https://github.com/chrmsantos/LegisTab>
+Licença: Apache 2.0 **modificada** (cláusula 10 - restrição comercial, ver LICENSE)  
+Repositório: <https://github.com/chrmsantos/std-legis-docs>
 
 ===============================================
 AUTOR PRINCIPAL

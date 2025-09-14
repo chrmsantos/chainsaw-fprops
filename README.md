@@ -33,7 +33,7 @@
 
 ## Licença
 
-Código sob licença [Apache 2.0](https://www.apache.org/licenses/LICENSE-2.0).  
+Código sob licença [Apache 2.0 modificada com cláusula 10 (restrição comercial), conforme LICENSE](LICENSE).  
 O Microsoft Word é software proprietário e requer licença própria.
 
 ## Autor
