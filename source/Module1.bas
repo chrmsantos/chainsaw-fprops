@@ -731,7 +731,7 @@ Private Function RemoveLeadingBlankLinesAndCheckString(doc As Document) As Boole
 
     ' Check if document has at least one paragraph after removal
     If doc.Paragraphs.Count = 0 Then
-        LogMessage "? Documento vazio após a remoção das linhas em branco iniciais", LOG_LEVEL_ERROR
+        LogMessage "? Documento vazio após a remoção das linhas em branco iniciais.", LOG_LEVEL_ERROR
         MsgBox "O documento está vazio após a remoção das linhas em branco iniciais.", vbExclamation, "Documento Vazio"
         RemoveLeadingBlankLinesAndCheckString = False
         Exit Function
@@ -748,9 +748,9 @@ Private Function RemoveLeadingBlankLinesAndCheckString(doc As Document) As Boole
 
         MsgBox "ATENÇÃO: A variável" & vbCrLf & REQUIRED_STRING & "correta NÃO foi encontrada na primeira linha:" & vbCrLf & vbCrLf & _
                "'" & REQUIRED_STRING & "'", _
-               vbExclamation, "String Obrigatória Não Encontrada"
+               vbExclamation, "String obrigatória '" & REQUIRED_STRING & "' não encontrada."
 
-        LogMessage "??  Usuário informado sobre ausência da string obrigatória, prosseguindo", LOG_LEVEL_WARNING
+        LogMessage "??  Usuário informado sobre ausência da string obrigatória, prosseguindo.", LOG_LEVEL_WARNING
         RemoveLeadingBlankLinesAndCheckString = True
     Else
         LogMessage "? String obrigatória encontrada com sucesso: '" & REQUIRED_STRING & "'", LOG_LEVEL_INFO
@@ -888,7 +888,6 @@ Private Function ApplyStdFont(doc As Document) As Boolean
             With para.Range.Font
                 .Name = STANDARD_FONT
                 .Size = STANDARD_FONT_SIZE
-                .Underline = wdUnderlineNone
                 .Color = wdColorAutomatic
             End With
             
@@ -1622,10 +1621,12 @@ Private Function DataAtualExtensoNoFinal(doc As Document) As Boolean
 
     ' Monta possíveis variações da data em extenso
     dataExtenso = Format(dataHoje, "d \de mmmm \de yyyy")
-    ReDim variantes(2)
-    variantes(0) = dataExtenso
-    variantes(1) = Format(dataHoje, "d 'de' mmmm 'de' yyyy")
-    variantes(2) = Format(dataHoje, "dd 'de' mmmm 'de' yyyy")
+    ReDim variantes(4)
+    variantes(0) = dataExtenso ' Formato padrão
+    variantes(1) = Format(dataHoje, "d 'de' mmmm 'de' yyyy") ' Com dia sem zero à esquerda
+    variantes(2) = Format(dataHoje, "dd 'de' mmmm 'de' yyyy") ' Com dia com dois dígitos
+    variantes(3) = Format(dataHoje, "d 'de' mmmm 'de' y'.'yyy") ' Com dia sem zero à esquerda e ano com ponto
+    variantes(4) = Format(dataHoje, "dd 'de' mmmm 'de' y'.'yyy") ' Com dia com dois dígitos e ano com ponto
 
     encontrado = False
 
