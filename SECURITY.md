@@ -2,20 +2,20 @@
 
 ## Supported Versions
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
+chainsaw-fprops follows a best-effort security maintenance policy. Only the latest stable release is actively supported with security updates.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
+| Version      | Supported          |
+| ------------ | ------------------ |
+| 2.0.x        | :white_check_mark: |
+| < 2.0        | :x:                |
 
 ## Reporting a Vulnerability
 
-Use this section to tell people how to report a vulnerability.
+If you discover a security vulnerability in chainsaw-fprops, please report it privately to the maintainer:
 
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+- Email: chrmsantos@gmail.com
+- GitHub Issues: [https://github.com/chrmsantos/chainsaw-fprops/issues](https://github.com/chrmsantos/chainsaw-fprops/issues) (mark as "Security" and do **not** disclose details publicly)
+
+Please include as much detail as possible to help reproduce and address the issue. You can expect a response within 7 business days. If the vulnerability is confirmed, a fix will be prioritized and released as soon as possible.
+
+Thank you for helping keep chainsaw-fprops secure!

@@ -1,7 +1,7 @@
 ' =============================================================================
-' std-legis-docs - Padronização e automação avançada de documentos Word em VBA
+' chainsaw-fprops - Padronização e automação avançada de documentos Word em VBA
 ' Versão: 2.0.1-stable | Data: 2025-09-11
-' Autor: Christian Martin dos Santos | github.com/chrmsantos/std-legis-docs
+' Autor: Christian Martin dos Santos | github.com/chrmsantos/chainsaw-fprops
 ' =============================================================================
 ' Solução open source para formatação, segurança, backup, logging e interface
 ' aprimorada de documentos institucionais no Microsoft Word.

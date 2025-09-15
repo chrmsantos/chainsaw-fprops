@@ -1,12 +1,12 @@
 CONTRIBUTORES | CONTRIBUTORS
 ===============================================
 
-Projeto: LegisTab  
+Projeto: chainsaw-fprops  
 Tipo: Macros VBA para Microsoft Word  
 Versão: 2.0.1-stable  
 Data: 11/09/2025  
 Licença: Apache 2.0 **modificada** (cláusula 10 - restrição comercial, ver LICENSE)  
-Repositório: <https://github.com/chrmsantos/std-legis-docs>
+Repositório: <https://github.com/chrmsantos/chainsaw-fprops>
 
 ===============================================
 AUTOR PRINCIPAL
@@ -53,6 +53,6 @@ REVISÕES E CORREÇÕES MENORES
 [Data] - [Responsável] - [Descrição sucinta]
 -------------------------------------------------
 
-11/09/2025 - Christian - Documento simplificado e atualizado para LegisTab 2.0.1
+11/09/2025 - Christian - Documento simplificado e atualizado para chainsaw-fprops 2.0.1
 
-v2.0.1 - 11/09/2025 - Atualização para LegisTab por Christian
+v2.0.1 - 11/09/2025 - Atualização para chainsaw-fprops por Christian

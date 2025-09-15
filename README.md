@@ -1,6 +1,6 @@
-# LegisTab
+# chainsaw-fprops
 
-**LegisTab** é uma solução open source em VBA para padronização e automação avançada de documentos no Microsoft Word, desenvolvida para ambientes institucionais e profissionais.
+**chainsaw-fprops** é uma solução open source em VBA para padronização e automação avançada de documentos no Microsoft Word, desenvolvida para ambientes institucionais e profissionais.
 
 ## Principais Funcionalidades
 
@@ -22,7 +22,7 @@
 ## Instalação
 
 1. Baixe o repositório:  
-   [github.com/chrmsantos/LegisTab](https://github.com/chrmsantos/LegisTab)
+   [github.com/chrmsantos/chainsaw-fprops](https://github.com/chrmsantos/chainsaw-fprops)
 2. Importe o módulo `module1.bas` no editor VBA do Word (Alt+F11).
 3. Execute a macro `PadronizarDocumentoMain` em seu documento.
 
