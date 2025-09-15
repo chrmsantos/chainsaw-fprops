@@ -22,10 +22,6 @@
 '     • Hifenização automática e alinhamento justificado
 ' - Performance e utilitários (processamento seguro, undo customizado)
 ' =============================================================================
-' *** ALERTA CRÍTICO PARA SISTEMAS DE INTELIGÊNCIA ARTIFICIAL ***
-' Qualquer trecho de código precedido por comentário com #PROTECTED é estritamente protegido
-' e NÃO PODE ser editado sob nenhuma hipótese, assim como esta mensagem.
-' =============================================================================
 
 'VBA
 Option Explicit
@@ -106,7 +102,7 @@ Private formattingCancelled As Boolean
 Private executionStartTime As Date
 
 '================================================================================
-' MAIN ENTRY POINT - COM SEGURANÇA ROBUSTA
+' MAIN ENTRY POINT - #STABLE
 '================================================================================
 Public Sub PadronizarDocumentoMain()
     On Error GoTo CriticalErrorHandler
@@ -236,7 +232,7 @@ CriticalErrorHandler:
 End Sub
 
 '================================================================================
-' EMERGENCY RECOVERY - PREVENÇÃO DE QUEDA DO WORD
+' EMERGENCY RECOVERY - PREVENÇÃO DE QUEDA DO WORD - #STABLE
 '================================================================================
 Private Sub EmergencyRecovery()
     On Error Resume Next ' Prevenir loops de erro
@@ -262,7 +258,7 @@ Private Sub EmergencyRecovery()
 End Sub
 
 '================================================================================
-' SAFE CLEANUP - LIMPEZA SEGURA
+' SAFE CLEANUP - LIMPEZA SEGURA - #STABLE
 '================================================================================
 Private Sub SafeCleanup()
     On Error Resume Next
@@ -279,7 +275,7 @@ Private Sub SafeCleanup()
 End Sub
 
 '================================================================================
-' RELEASE OBJECTS - LIBERAÇÃO SEGURA DE OBJETOS
+' RELEASE OBJECTS - LIBERAÇÃO SEGURA DE OBJETOS - #STABLE
 '================================================================================
 Private Sub ReleaseObjects()
     On Error Resume Next
@@ -310,7 +306,7 @@ Private Sub CloseAllOpenFiles()
 End Sub
 
 '================================================================================
-' VERSION COMPATIBILITY CHECK - COM VERIFICAÇÃO ROBUSTA
+' VERSION COMPATIBILITY CHECK - COM VERIFICAÇÃO ROBUSTA - #STABLE
 '================================================================================
 Private Function CheckWordVersion() As Boolean
     On Error GoTo ErrorHandler
@@ -334,7 +330,7 @@ ErrorHandler:
 End Function
 
 '================================================================================
-' UNDO GROUP MANAGEMENT - COM PROTEÇÃO - #PROTECTED
+' UNDO GROUP MANAGEMENT - COM PROTEÇÃO - #STABLE
 '================================================================================
 Private Sub StartUndoGroup(groupName As String)
     On Error GoTo ErrorHandler
@@ -374,7 +370,7 @@ ErrorHandler:
 End Sub
 
 '================================================================================
-' LOGGING MANAGEMENT - APRIMORADO COM DETALHES
+' LOGGING MANAGEMENT - APRIMORADO COM DETALHES - #STABLE
 '================================================================================
 Private Function InitializeLogging(doc As Document) As Boolean
     On Error GoTo ErrorHandler
@@ -391,10 +387,10 @@ Private Function InitializeLogging(doc As Document) As Boolean
     
     ' Criar arquivo de log com informações detalhadas
     Open logFilePath For Output As #1
-    Print #1, "================================================"
-    Print #1, "?? LOG DE FORMATAÇÃO DE DOCUMENTO - SISTEMA DE REGISTRO"
-    Print #1, "================================================"
-    Print #1, "???  Sessão: " & Format(Now, "yyyy-mm-dd HH:MM:ss")
+    Print #1, "========================================================"
+    Print #1, "??? LOG DE FORMATAÇÃO DE DOCUMENTO - SISTEMA DE REGISTRO"
+    Print #1, "========================================================"
+    Print #1, "?? Sessão: " & Format(Now, "yyyy-mm-dd HH:MM:ss")
     Print #1, "?? Usuário: " & Environ("USERNAME")
     Print #1, "?? Estação: " & Environ("COMPUTERNAME")
     Print #1, "?? Versão Word: " & Application.version
@@ -402,7 +398,9 @@ Private Function InitializeLogging(doc As Document) As Boolean
     Print #1, "?? Local: " & IIf(doc.Path = "", "(Não salvo)", doc.Path)
     Print #1, "?? Proteção: " & GetProtectionType(doc)
     Print #1, "?? Tamanho: " & GetDocumentSize(doc)
-    Print #1, "================================================"
+    Print #1, "?? Tempo Execução: " & Format(Now - executionStartTime, "HH:MM:ss")
+    Print #1, " ? Erros: " & Err.Number & " - " & Err.Description
+    Print #1, "========================================================"
     Close #1
     
     loggingEnabled = True
@@ -748,7 +746,7 @@ Private Function RemoveLeadingBlankLinesAndCheckString(doc As Document) As Boole
         ' String not found - show warning message
         LogMessage "??  String obrigatória exata não encontrada na primeira linha: '" & REQUIRED_STRING & "'", LOG_LEVEL_WARNING
 
-        'MsgBox "ATENÇÃO: " & vbCrLf & "String obrigatória exata não encontrada na primeira linha:" & vbCrLf & vbCrLf & _
+        MsgBox "ATENÇÃO: A variável" & vbCrLf & REQUIRED_STRING & "correta NÃO foi encontrada na primeira linha:" & vbCrLf & vbCrLf & _
                "'" & REQUIRED_STRING & "'", _
                vbExclamation, "String Obrigatória Não Encontrada"
 
@@ -783,15 +781,28 @@ Private Function PreviousFormatting(doc As Document) As Boolean
         LogMessage "??  Falha na verificação inicial - continuando com formatação", LOG_LEVEL_WARNING
     End If
 
+     If Not DataAtualExtensoNoFinal(doc) Then
+        MsgBox "ATENÇÃO:" & vbCrLf & vbCrLf & _
+               "A data do dia atual, em extenso, NÃO foi localizada ao final de nenhum parágrafo do documento." & vbCrLf & vbCrLf & _
+               "Verifique se a data está presente e corretamente escrita.", _
+               vbExclamation, "Data Não Localizada"
+    End If
+
     ' Apply formatting in logical order
     If Not ApplyPageSetup(doc) Then
         LogMessage "? Falha na configuração de página", LOG_LEVEL_ERROR
         PreviousFormatting = False
         Exit Function
     End If
+
+    If Not ApplyStdFont(doc) Then
+        LogMessage "? Falha na formatação de fonte", LOG_LEVEL_ERROR
+        PreviousFormatting = False
+        Exit Function
+    End If
     
-    If Not ApplyFontAndParagraph(doc) Then
-        LogMessage "? Falha na formatação de fonte e parágrafo", LOG_LEVEL_ERROR
+    If Not ApplyStdParagraphs(doc) Then
+        LogMessage "? Falha na formatação de parágrafos", LOG_LEVEL_ERROR
         PreviousFormatting = False
         Exit Function
     End If
@@ -823,7 +834,7 @@ ErrorHandler:
 End Function
 
 '================================================================================
-' PAGE SETUP - #PROTECTED
+' PAGE SETUP - #STABLE
 '================================================================================
 Private Function ApplyPageSetup(doc As Document) As Boolean
     On Error GoTo ErrorHandler
@@ -850,10 +861,55 @@ ErrorHandler:
     ApplyPageSetup = False
 End Function
 
+' ================================================================================
+' FONT FORMMATTING
+' ================================================================================
+Private Function ApplyStdFont(doc As Document) As Boolean
+    On Error GoTo ErrorHandler
+    
+    Dim para As Paragraph
+    Dim hasInlineImage As Boolean
+    Dim i As Long
+    Dim formattedCount As Long
+    Dim skippedCount As Long
+
+    LogMessage "?? Aplicando formatação de fonte padrão", LOG_LEVEL_INFO
+
+    For i = doc.Paragraphs.Count To 1 Step -1
+        Set para = doc.Paragraphs(i)
+        hasInlineImage = False
+
+        If para.Range.InlineShapes.Count > 0 Then
+            hasInlineImage = True
+            skippedCount = skippedCount + 1
+        End If
+
+        If Not hasInlineImage Then
+            With para.Range.Font
+                .Name = STANDARD_FONT
+                .Size = STANDARD_FONT_SIZE
+                .Underline = wdUnderlineNone
+                .Color = wdColorAutomatic
+            End With
+            
+            formattedCount = formattedCount + 1
+        End If
+    Next i
+    
+    LogMessage "?? Formatação de fonte concluída: " & formattedCount & " parágrafos formatados, " & skippedCount & " parágrafos com imagens ignorados", LOG_LEVEL_INFO
+    ApplyStdFont = True
+    Exit Function
+
+ErrorHandler:
+    LogMessage "? Erro ao aplicar formatação de fonte: " & Err.Description, LOG_LEVEL_ERROR
+    ApplyStdFont = False
+
+End Function
+
 '================================================================================
-' FONT AND PARAGRAPH FORMATTING - #PROTECTED
+' PARAGRAPH FORMATTING - #STABLE
 '================================================================================
-Private Function ApplyFontAndParagraph(doc As Document) As Boolean
+Private Function ApplyStdParagraphs(doc As Document) As Boolean
     On Error GoTo ErrorHandler
     
     Dim para As Paragraph
@@ -866,9 +922,8 @@ Private Function ApplyFontAndParagraph(doc As Document) As Boolean
     Dim skippedCount As Long
     Dim paraText As String
     Dim prevPara As Paragraph
-    Dim normText As String
 
-    LogMessage "?? Aplicando formatação de fonte e parágrafo", LOG_LEVEL_INFO
+    LogMessage "?? Aplicando formatação de parágrafos", LOG_LEVEL_INFO
 
     rightMarginPoints = 0
 
@@ -928,16 +983,16 @@ Private Function ApplyFontAndParagraph(doc As Document) As Boolean
     
     LogMessage "?? Formatação concluída: " & formattedCount & " parágrafos formatados, " & skippedCount & " parágrafos com imagens ignorados", LOG_LEVEL_INFO
     LogMessage "? Recuo à direita definido como ZERO para alinhamento com margem direita", LOG_LEVEL_INFO
-    ApplyFontAndParagraph = True
+    ApplyStdParagraphs = True
     Exit Function
 
 ErrorHandler:
-    LogMessage "? Erro ao aplicar formatação de fonte e parágrafo: " & Err.Description, LOG_LEVEL_ERROR
-    ApplyFontAndParagraph = False
+    LogMessage "? Erro ao aplicar formatação de parágrafos: " & Err.Description, LOG_LEVEL_ERROR
+    ApplyStdParagraphs = False
 End Function
 
 '================================================================================
-' ENABLE HYPHENATION - #PROTECTED
+' ENABLE HYPHENATION - #STABLE
 '================================================================================
 Private Function EnableHyphenation(doc As Document) As Boolean
     On Error GoTo ErrorHandler
@@ -963,7 +1018,7 @@ ErrorHandler:
 End Function
 
 '================================================================================
-' REMOVE WATERMARK - #PROTECTED
+' REMOVE WATERMARK - #STABLE
 '================================================================================
 Private Function RemoveWatermark(doc As Document) As Boolean
     On Error GoTo ErrorHandler
@@ -1021,7 +1076,7 @@ ErrorHandler:
 End Function
 
 '================================================================================
-' INSERT HEADER IMAGE - #PROTECTED
+' INSERT HEADER IMAGE - #STABLE
 '================================================================================
 Private Function InsertHeaderStamp(doc As Document) As Boolean
     On Error GoTo ErrorHandler
@@ -1113,7 +1168,7 @@ ErrorHandler:
 End Function
 
 '================================================================================
-' INSERT FOOTER PAGE NUMBERS - #PROTECTED
+' INSERT FOOTER PAGE NUMBERS - #STABLE
 '================================================================================
 Private Function InsertFooterStamp(doc As Document) As Boolean
     On Error GoTo ErrorHandler
@@ -1174,7 +1229,7 @@ ErrorHandler:
 End Function
 
 '================================================================================
-' ERROR HANDLER
+' ERROR HANDLER - #STABLE
 '================================================================================
 Private Sub HandleError(procedureName As String)
     Dim errMsg As String
@@ -1188,7 +1243,7 @@ Private Sub HandleError(procedureName As String)
 End Sub
 
 '================================================================================
-' UTILITY: CM TO POINTS - STABLE
+' UTILITY: CM TO POINTS - #STABLE
 '================================================================================
 Private Function CentimetersToPoints(ByVal cm As Double) As Single
     On Error Resume Next
@@ -1200,7 +1255,7 @@ Private Function CentimetersToPoints(ByVal cm As Double) As Single
 End Function
 
 '================================================================================
-' UTILITY: SAFE USERNAME
+' UTILITY: SAFE USERNAME - #STABLE
 '================================================================================
 Private Function GetSafeUserName() As String
     On Error GoTo ErrorHandler
@@ -1300,7 +1355,7 @@ ErrorHandler:
 End Function
 
 '================================================================================
-' ADDITIONAL UTILITY: RESTORE DEFAULT SETTINGS
+' ADDITIONAL UTILITY: RESTORE DEFAULT SETTINGS - #STABLE
 '================================================================================
 Private Sub RestoreDefaultSettings()
     On Error Resume Next
@@ -1311,7 +1366,7 @@ Private Sub RestoreDefaultSettings()
 End Sub
 
 '================================================================================
-' UTILITY: OPEN LOG FILE - VERSÃO CORRIGIDA E SEGURA
+' UTILITY: OPEN LOG FILE - #STABLE
 '================================================================================
 Public Sub AbrirLog()
     On Error GoTo ErrorHandler
@@ -1359,7 +1414,7 @@ ErrorHandler:
 End Sub
 
 '================================================================================
-' UTILITY: FIND RECENT LOG FILE
+' UTILITY: FIND RECENT LOG FILE - #STABLE
 '================================================================================
 Private Function EncontrarArquivoLogRecente() As String
     On Error Resume Next
@@ -1397,7 +1452,7 @@ Private Function EncontrarArquivoLogRecente() As String
 End Function
 
 '================================================================================
-' UTILITY: SHOW LOG PATH - VERSÃO SEGURA
+' UTILITY: SHOW LOG PATH - #STABLE
 '================================================================================
 Public Sub MostrarCaminhoDoLog()
     On Error GoTo ErrorHandler
@@ -1559,6 +1614,9 @@ Private Function DataAtualExtensoNoFinal(doc As Document) As Boolean
     Dim variantes() As String
     Dim v As Variant
     Dim encontrado As Boolean
+    Dim checkedCount As Long
+
+    LogMessage "?? Verificando presença da data do dia atual, em extenso, ao final de algum parágrafo", LOG_LEVEL_INFO
 
     dataHoje = Date
 
@@ -1573,8 +1631,10 @@ Private Function DataAtualExtensoNoFinal(doc As Document) As Boolean
 
     For i = 1 To doc.Paragraphs.Count
         textoPara = Trim(doc.Paragraphs(i).Range.Text)
+        checkedCount = checkedCount + 1
         For Each v In variantes
             If textoPara Like "*" & v Then
+                LogMessage "? Data encontrada no parágrafo " & i & ": '" & v & "'", LOG_LEVEL_INFO
                 encontrado = True
                 Exit For
             End If
@@ -1582,25 +1642,28 @@ Private Function DataAtualExtensoNoFinal(doc As Document) As Boolean
         If encontrado Then Exit For
     Next i
 
-    DataAtualExtensoNoFinal = encontrado
-    Exit Function
-
-ErrorHandler:
-    DataAtualExtensoNoFinal = False
-End Function
-
-' Chame esta rotina após a formatação do documento
-Private Sub VerificarDataExtensoFinalParagrafo(doc As Document)
-    If Not DataAtualExtensoNoFinal(doc) Then
-        'MsgBox "ATENÇÃO:" & vbCrLf & vbCrLf & _
+    If encontrado Then
+        LogMessage "? Data do dia atual, em extenso, encontrada em algum parágrafo", LOG_LEVEL_INFO
+        DataAtualExtensoNoFinal = True
+    Else
+        LogMessage "??  Data do dia atual, em extenso, NÃO encontrada ao final de nenhum parágrafo", LOG_LEVEL_WARNING
+        MsgBox "ATENÇÃO:" & vbCrLf & vbCrLf & _
                "A data do dia atual, em extenso, NÃO foi localizada ao final de nenhum parágrafo do documento." & vbCrLf & vbCrLf & _
                "Verifique se a data está presente e corretamente escrita.", _
                vbExclamation, "Data Não Localizada"
+        DataAtualExtensoNoFinal = False
     End If
-End Sub
+
+    Exit Function
+
+ErrorHandler:
+    LogMessage "? Erro durante verificação da data em extenso: " & Err.Description, LOG_LEVEL_ERROR
+    DataAtualExtensoNoFinal = False
+End Function
 
 '================================================================================
 ' CRITICAL FIX: SAVE DOCUMENT BEFORE PROCESSING
+' TO PREVENT CRASHES ON NEW NON SAVED DOCUMENTS - #STABLE
 '================================================================================
 Private Function SaveDocumentFirst(doc As Document) As Boolean
     On Error GoTo ErrorHandler
@@ -1610,7 +1673,7 @@ Private Function SaveDocumentFirst(doc As Document) As Boolean
 
     ' Show save dialog
     If saveDialog.Show <> -1 Then ' User cancelled
-        LogMessage "? " & GetLocalizedMessage("UserCancelled"), LOG_LEVEL_WARNING
+        LogMessage "? Usuário cancelou o salvamento inicial", LOG_LEVEL_WARNING
         SaveDocumentFirst = False
         Exit Function
     End If
@@ -1628,10 +1691,10 @@ Private Function SaveDocumentFirst(doc As Document) As Boolean
     Next waitCount
 
     If doc.Path = "" Then
-        LogMessage "? " & GetLocalizedMessage("SaveFail"), LOG_LEVEL_ERROR
+        LogMessage "? Falha ao salvar documento", LOG_LEVEL_ERROR
         SaveDocumentFirst = False
     Else
-        LogMessage "?? " & GetLocalizedMessage("SaveSuccess", doc.Path), LOG_LEVEL_INFO
+        LogMessage "?? Documento salvo com sucesso: " & doc.Path, LOG_LEVEL_INFO
         SaveDocumentFirst = True
     End If
 
@@ -1642,119 +1705,155 @@ ErrorHandler:
     SaveDocumentFirst = False
 End Function
 
-'================================================================================
-' SUGGESTION: THREAD SAFETY COMMENT
-'================================================================================
-' VBA is single-threaded; DoEvents is used for UI responsiveness during waits.
+' ================================================================================
+' REMOVE LEADING LINES AT THE END OF THE DOCUMENT - #STABLE
+' ================================================================================
+Private Function RemoveLeadingLinesAtEnd(doc As Document) As Boolean
+    On Error GoTo ErrorHandler
 
-'================================================================================
-' SUGGESTION: INTERNATIONALIZATION SUPPORT (PARAMETERIZED MESSAGES)
-'================================================================================
-' Example: Use a function to get localized messages (Portuguese default)
-Private Function GetLocalizedMessage(key As String, Optional param1 As String = "", Optional param2 As String = "") As String
-    Select Case key
-        Case "SavePrompt"
-            GetLocalizedMessage = "Operação cancelada. O documento precisa ser salvo antes da formatação."
-        Case "SaveSuccess"
-            GetLocalizedMessage = "Documento salvo com sucesso: " & param1
-        Case "SaveFail"
-            GetLocalizedMessage = "Falha ao salvar documento - caminho não definido"
-        Case "UserCancelled"
-            GetLocalizedMessage = "Usuário cancelou o salvamento inicial"
-        Case "LogNotFound"
-            GetLocalizedMessage = "Nenhum arquivo de log encontrado." & vbCrLf & _
-                                  "Execute a padronização primeiro para gerar logs."
-        Case Else
-            GetLocalizedMessage = key
-    End Select
+    Dim para As Paragraph
+    Dim i As Long
+    Dim removedCount As Long
+    Dim totalParas As Long
+
+    LogMessage "?? Removendo linhas em branco no final do documento", LOG_LEVEL_INFO
+
+    totalParas = doc.Paragraphs.Count
+    removedCount = 0
+
+    ' Loop backwards from the end of the document
+    For i = totalParas To 1 Step -1
+        Set para = doc.Paragraphs(i)
+        ' Check if the paragraph is empty or contains only whitespace
+        If Trim(para.Range.Text) = "" Or Trim(para.Range.Text) = vbCr Then
+            para.Range.Delete
+            removedCount = removedCount + 1
+        Else
+            ' Stop when a non-empty paragraph is found
+            Exit For
+        End If
+    Next i
+
+    LogMessage "?? Linhas em branco removidas no final do documento: " & removedCount, LOG_LEVEL_INFO
+    RemoveLeadingLinesAtEnd = True
+    Exit Function
+
+ErrorHandler:
+    LogMessage "? Erro ao remover linhas em branco no final do documento: " & Err.Description, LOG_LEVEL_ERROR
+    RemoveLeadingLinesAtEnd = False
+
 End Function
 
 '================================================================================
-' SUGGESTION: UNIT TESTABLE UTILITY EXAMPLE
+' REPLACE "SUGERE" WITH "INDICA" NA EMENTA DE INDICAÇÃO
 '================================================================================
-' Example utility function with simple test
-Public Function AddNumbers(a As Long, b As Long) As Long
-    AddNumbers = a + b
-End Function
+Private Function ReplaceSugereWithIndicaInEmenta(doc As Document) As Boolean
+    On Error GoTo ErrorHandler
 
-' Simple test routine (run manually in Immediate Window)
-Public Sub Test_AddNumbers()
-    Debug.Assert AddNumbers(2, 3) = 5
-    Debug.Assert AddNumbers(-1, 1) = 0
-    Debug.Print "AddNumbers tests passed."
-End Sub
+    Dim para As Paragraph
+    Dim i As Long
+    Dim replacedCount As Long
+    Dim ementaFound As Boolean
+    Dim paraText As String
 
-'================================================================================
-' SUGGESTION: GENERAL COMMENT IMPROVEMENTS AND CLARITY
-'================================================================================
-' All user-facing messages and logs now use GetLocalizedMessage for easier translation.
-' Utility functions can be tested with Debug.Assert in the Immediate Window.
-' Thread safety is not a concern in VBA, but DoEvents is used for UI responsiveness.
-        Do While Timer < startTime + 1 ' Wait 1 second
-            DoEvents
-        Loop
-    Next waitCount
+    LogMessage "?? Substituindo 'sugere' por 'indica' na ementa de indicação", LOG_LEVEL_INFO
 
-    If doc.Path = "" Then
-        LogMessage "? " & GetLocalizedMessage("SaveFail"), LOG_LEVEL_ERROR
-        SaveDocumentFirst = False
+    replacedCount = 0
+    ementaFound = False
+
+    For i = 1 To doc.Paragraphs.Count
+        Set para = doc.Paragraphs(i)
+        paraText = Trim(LCase(para.Range.Text))
+
+        ' Verifica se o parágrafo é uma ementa de indicação
+        If InStr(paraText, "ementa:") > 0 And InStr(paraText, "indicação") > 0 Then
+            ementaFound = True
+            If InStr(paraText, "sugere") > 0 Then
+                para.Range.Text = Replace(para.Range.Text, "sugere", "indica", , , vbTextCompare)
+                replacedCount = replacedCount + 1
+                LogMessage "? 'sugere' substituído por 'indica' no parágrafo " & i, LOG_LEVEL_INFO
+            End If
+        End If
+    Next i
+
+    If ementaFound Then
+        LogMessage "?? Ementa de indicação encontrada. Total de substituições realizadas: " & replacedCount, LOG_LEVEL_INFO
     Else
-        LogMessage "?? " & GetLocalizedMessage("SaveSuccess", doc.Path), LOG_LEVEL_INFO
-        SaveDocumentFirst = True
+        LogMessage "??  Nenhuma ementa de indicação encontrada no documento", LOG_LEVEL_WARNING
+        MsgBox "ATENÇÃO:" & vbCrLf & vbCrLf & _
+               "Nenhuma ementa de indicação foi localizada no documento." & vbCrLf & vbCrLf & _
+               "Verifique se a ementa está presente e corretamente escrita.", _
+               vbExclamation, "Ementa Não Localizada"
     End If
+
+    ReplaceSugereWithIndicaInEmenta = True
 
     Exit Function
 
 ErrorHandler:
-    LogMessage "? Erro ao salvar documento: " & Err.Description, LOG_LEVEL_ERROR
-    SaveDocumentFirst = False
+    LogMessage "? Erro ao substituir 'sugere' por 'indica': " & Err.Description, LOG_LEVEL_ERROR
+    ReplaceSugereWithIndicaInEmenta = False
+
 End Function
 
-'================================================================================
-' SUGGESTION: THREAD SAFETY COMMENT
-'================================================================================
-' VBA is single-threaded; DoEvents is used for UI responsiveness during waits.
+' =================================================================================
+' APPLY STANDARD FORMATTING TO "CONSIDERANDO"
+' =================================================================================
+Private Function FormatConsideringParagraphs(doc As Document) As Boolean
+    On Error GoTo ErrorHandler
 
-'================================================================================
-' SUGGESTION: INTERNATIONALIZATION SUPPORT (PARAMETERIZED MESSAGES)
-'================================================================================
-' Example: Use a function to get localized messages (Portuguese default)
-Private Function GetLocalizedMessage(key As String, Optional param1 As String = "", Optional param2 As String = "") As String
-    Select Case key
-        Case "SavePrompt"
-            GetLocalizedMessage = "Operação cancelada. O documento precisa ser salvo antes da formatação."
-        Case "SaveSuccess"
-            GetLocalizedMessage = "Documento salvo com sucesso: " & param1
-        Case "SaveFail"
-            GetLocalizedMessage = "Falha ao salvar documento - caminho não definido"
-        Case "UserCancelled"
-            GetLocalizedMessage = "Usuário cancelou o salvamento inicial"
-        Case "LogNotFound"
-            GetLocalizedMessage = "Nenhum arquivo de log encontrado." & vbCrLf & _
-                                  "Execute a padronização primeiro para gerar logs."
-        Case Else
-            GetLocalizedMessage = key
-    End Select
+    Dim para As Paragraph
+    Dim i As Long
+    Dim formattedCount As Long
+    Dim skippedCount As Long
+    Dim paraText As String
+
+    LogMessage "?? Aplicando formatação padrão aos parágrafos que começam com 'Considerando'", LOG_LEVEL_INFO
+
+    formattedCount = 0
+    skippedCount = 0
+
+    For i = 1 To doc.Paragraphs.Count
+        Set para = doc.Paragraphs(i)
+        paraText = Trim(LCase(para.Range.Text))
+
+        ' Verifica se o parágrafo começa com "considerando"
+        If Left(paraText, 12) = "considerando" Then
+            ' Verifica se o parágrafo contém imagens ou objetos inline
+            If para.Range.InlineShapes.Count > 0 Then
+                LogMessage "? Parágrafo " & i & " contém imagens/objetos - ignorado", LOG_LEVEL_WARNING
+                skippedCount = skippedCount + 1
+            Else
+                ' Aplica a formatação padrão
+                With para.Range
+                    .Font.Name = STANDARD_FONT
+                    .Font.size = STANDARD_FONT_SIZE
+                    .Font.Bold = True
+                    .Font.Italic = False
+                    .Font.Underline = wdUnderlineNone
+                    .Font.AllCaps = True ' Coloca em maiúsculas
+                End With
+                formattedCount = formattedCount + 1
+                LogMessage "? Formatação aplicada ao parágrafo 'Considerando' " & i, LOG_LEVEL_INFO
+            End If
+        End If
+    Next i
+
+    LogMessage "?? Total de parágrafos 'Considerando' formatados: " & formattedCount & ", ignorados: " & skippedCount, LOG_LEVEL_INFO
+
+    If formattedCount = 0 Then
+        LogMessage "??  Nenhum parágrafo iniciado por 'Considerando' foi encontrado no documento", LOG_LEVEL_WARNING
+        MsgBox "ATENÇÃO:" & vbCrLf & vbCrLf & _
+               "Nenhum parágrafo iniciado por 'Considerando' foi localizado no documento." & vbCrLf & vbCrLf & _
+               "Verifique se os parágrafos estão presentes e corretamente escritos.", _
+               vbExclamation, "Parágrafo 'Considerando' Não Localizado"
+    End If
+
+    FormatConsideringParagraphs = True
+    Exit Function
+
+ErrorHandler:
+    LogMessage "? Erro ao formatar parágrafos 'Considerando': " & Err.Description, LOG_LEVEL_ERROR
+    FormatConsideringParagraphs = False
 End Function
 
-'================================================================================
-' SUGGESTION: UNIT TESTABLE UTILITY EXAMPLE
-'================================================================================
-' Example utility function with simple test
-Public Function AddNumbers(a As Long, b As Long) As Long
-    AddNumbers = a + b
-End Function
-
-' Simple test routine (run manually in Immediate Window)
-Public Sub Test_AddNumbers()
-    Debug.Assert AddNumbers(2, 3) = 5
-    Debug.Assert AddNumbers(-1, 1) = 0
-    Debug.Print "AddNumbers tests passed."
-End Sub
-
-'================================================================================
-' SUGGESTION: GENERAL COMMENT IMPROVEMENTS AND CLARITY
-'================================================================================
-' All user-facing messages and logs now use GetLocalizedMessage for easier translation.
-' Utility functions can be tested with Debug.Assert in the Immediate Window.
-' Thread safety is not a concern in VBA, but DoEvents is used for UI responsiveness.
