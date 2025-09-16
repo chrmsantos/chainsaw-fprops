@@ -373,114 +373,45 @@ ErrorHandler:
 End Sub
 
 '================================================================================
-' LOGGING MANAGEMENT - APRIMORADO COM DETALHES - #STABLE
+' LOGGING MANAGEMENT - SIMPLIFICADO
 '================================================================================
 Private Function InitializeLogging(doc As Document) As Boolean
-    On Error GoTo ErrorHandler
-    
-    ' Determinar caminho do arquivo de log
+    On Error Resume Next
+
     If doc.Path <> "" Then
-        logFilePath = doc.Path & "\" & Format(Now, "yyyy-mm-dd") & "_" & _
-                     Replace(doc.Name, ".doc", "") & "_FormattingLog.txt"
+        logFilePath = doc.Path & "\" & Replace(doc.Name, ".doc", "") & "_FormattingLog.txt"
         logFilePath = Replace(logFilePath, ".docx", "") & "_FormattingLog.txt"
         logFilePath = Replace(logFilePath, ".docm", "") & "_FormattingLog.txt"
     Else
-        logFilePath = Environ("TEMP") & "\" & Format(Now, "yyyy-mm-dd") & "_DocumentFormattingLog.txt"
+        logFilePath = Environ("TEMP") & "\DocumentFormattingLog.txt"
     End If
-    
-    ' Criar arquivo de log com informações detalhadas
-    Open logFilePath For Output As #1
-    Print #1, "========================================================"
-    Print #1, "??? LOG DE FORMATAÇÃO DE DOCUMENTO - SISTEMA DE REGISTRO"
-    Print #1, "========================================================"
-    Print #1, "?? Sessão: " & Format(Now, "yyyy-mm-dd HH:MM:ss")
-    Print #1, "?? Usuário: " & Environ("USERNAME")
-    Print #1, "?? Estação: " & Environ("COMPUTERNAME")
-    Print #1, "?? Versão Word: " & Application.version
-    Print #1, "?? Documento: " & doc.Name
-    Print #1, "?? Local: " & IIf(doc.Path = "", "(Não salvo)", doc.Path)
-    Print #1, "?? Proteção: " & GetProtectionType(doc)
-    Print #1, "?? Tamanho: " & GetDocumentSize(doc)
-    Print #1, "?? Tempo Execução: " & Format(Now - executionStartTime, "HH:MM:ss")
-    Print #1, " ? Erros: " & Err.Number & " - " & Err.Description
-    Print #1, "========================================================"
-    Close #1
-    
+
     loggingEnabled = True
-    LogMessage "?? Sistema de logging inicializado: " & logFilePath, LOG_LEVEL_INFO
     InitializeLogging = True
-    
-    Exit Function
-    
-ErrorHandler:
-    LogMessage "? Falha crítica na inicialização do logging: " & Err.Description, LOG_LEVEL_ERROR
-    loggingEnabled = False
-    InitializeLogging = False
 End Function
 
 Private Sub LogMessage(message As String, Optional level As Long = LOG_LEVEL_INFO)
-    On Error GoTo ErrorHandler
-    
+    On Error Resume Next
+
     If Not loggingEnabled Then Exit Sub
-    
+
     Dim levelText As String
-    Dim levelIcon As String
-    
     Select Case level
-        Case LOG_LEVEL_INFO
-            levelText = "INFO"
-            levelIcon = "?? "
-        Case LOG_LEVEL_WARNING
-            levelText = "AVISO"
-            levelIcon = "?? "
-        Case LOG_LEVEL_ERROR
-            levelText = "ERRO"
-            levelIcon = "?"
-        Case Else
-            levelText = "OUTRO"
-            levelIcon = "??"
+        Case LOG_LEVEL_INFO: levelText = "[INFO]"
+        Case LOG_LEVEL_WARNING: levelText = "[WARN]"
+        Case LOG_LEVEL_ERROR: levelText = "[ERRO]"
+        Case Else: levelText = "[LOG]"
     End Select
-    
-    ' Formatar mensagem com timestamp detalhado
+
     Dim formattedMessage As String
-    formattedMessage = Format(Now, "yyyy-mm-dd HH:MM:ss") & " [" & levelText & "] " & levelIcon & " " & message
-    
-    ' Escrever no arquivo de log
+    formattedMessage = Format(Now, "yyyy-mm-dd HH:MM:ss") & " " & levelText & " " & message
+
     Open logFilePath For Append As #1
     Print #1, formattedMessage
     Close #1
-    
-    ' Output para Debug Window
-    Debug.Print "LOG: " & formattedMessage
-    
-    Exit Sub
-    
-ErrorHandler:
-    ' Fallback seguro para logging
-    Debug.Print "FALHA NO LOGGING: " & message
 End Sub
 
 Private Sub SafeFinalizeLogging()
-    On Error GoTo ErrorHandler
-    
-    If loggingEnabled Then
-        Open logFilePath For Append As #1
-        Print #1, "================================================"
-        Print #1, "?? FIM DA SESSÃO - " & Format(Now, "yyyy-mm-dd HH:MM:ss")
-        Print #1, "??  Duração: " & Format(Now - executionStartTime, "HH:MM:ss")
-        Print #1, "?? Status: " & IIf(formattingCancelled, "CANCELADO", "CONCLUÍDO")
-        Print #1, "================================================"
-        Close #1
-        
-        LogMessage "?? Log finalizado com sucesso", LOG_LEVEL_INFO
-    End If
-    
-    loggingEnabled = False
-    
-    Exit Sub
-    
-ErrorHandler:
-    Debug.Print "Erro ao finalizar logging: " & Err.Description
     loggingEnabled = False
 End Sub
 
