@@ -265,6 +265,9 @@ Private Sub SafeCleanup()
     
     LogMessage "?? Iniciando processo de limpeza segura", LOG_LEVEL_INFO
     
+    ' Remover linhas em branco no final do documento - prevenção de problemas de formatação
+    RemoveLeadingLinesAtEnd ActiveDocument
+    
     ' Finalizar grupo undo
     EndUndoGroup
     
@@ -1858,3 +1861,83 @@ ErrorHandler:
     FormatConsideringParagraphs = False
 End Function
 
+'================================================================================
+' UTILITY: OPEN WEBPAGE IN DEFAULT BROWSER (GENERIC, REUSABLE)
+'================================================================================
+Private Sub OpenWebGeneric(url As String)
+    On Error GoTo ErrorHandler
+
+    Dim shell As Object
+    Dim validatedUrl As String
+
+    ' Validação básica da URL
+    validatedUrl = Trim(url)
+    If validatedUrl = "" Then
+        MsgBox "URL não informada.", vbExclamation, "Erro ao Abrir Página Web"
+        Exit Sub
+    End If
+    If Not (LCase(Left(validatedUrl, 7)) = "http://" Or LCase(Left(validatedUrl, 8)) = "https://") Then
+        MsgBox "URL inválida: " & validatedUrl, vbExclamation, "Erro ao Abrir Página Web"
+        Exit Sub
+    End If
+
+    Set shell = CreateObject("WScript.Shell")
+    shell.Run """" & validatedUrl & """", 1, False
+
+    Exit Sub
+
+ErrorHandler:
+    MsgBox "Erro ao abrir a página web:" & vbCrLf & _
+           "URL: " & url & vbCrLf & _
+           "Erro " & Err.Number & ": " & Err.Description, vbExclamation, "Erro ao Abrir Página Web"
+End Sub
+
+'================================================================================
+' UTILITY: OPEN AI WEBPAGE IN DEFAULT BROWSER
+'================================================================================
+Public Sub OpenWebAI(url As String)
+    OpenWebGeneric "https://chatgpt.com/"
+End Sub
+
+'================================================================================
+' UTILITY: OPEN REPOSITORY WEBPAGE IN DEFAULT BROWSER
+'================================================================================
+Public Sub OpenWebRepository(url As String)
+    OpenWebGeneric "https://github.com/chainsaw-fprops"
+End Sub
+
+'================================================================================
+' UTILITY: SAVE AND EXIT - SEGURO E ROBUSTO
+'================================================================================
+Public Sub SalvarESairSeguro()
+    On Error GoTo ErrorHandler
+
+    Dim doc As Document
+    Set doc = Nothing
+
+    ' Tenta obter o documento ativo
+    Set doc = ActiveDocument
+    If doc Is Nothing Then
+        MsgBox "Nenhum documento ativo encontrado para salvar e sair.", vbExclamation, "Salvar e Sair"
+        LogMessage "? Nenhum documento ativo encontrado ao tentar salvar e sair.", LOG_LEVEL_WARNING
+        Exit Sub
+    End If
+
+    ' Salvar documento
+    doc.Save
+    LogMessage "?? Documento salvo com sucesso antes de sair: " & doc.FullName, LOG_LEVEL_INFO
+
+    ' Fechar o documento
+    doc.Close SaveChanges:=wdSaveChanges
+    LogMessage "?? Documento fechado com sucesso.", LOG_LEVEL_INFO
+
+    ' Sair do Word
+    Application.Quit
+    LogMessage "?? Microsoft Word encerrado com sucesso.", LOG_LEVEL_INFO
+    Exit Sub
+
+ErrorHandler:
+    MsgBox "Erro ao salvar e sair:" & vbCrLf & _
+           "Erro " & Err.Number & ": " & Err.Description, vbExclamation, "Erro ao Salvar e Sair"
+    LogMessage "? Erro ao salvar e sair: " & Err.Description, LOG_LEVEL_ERROR
+End Sub
