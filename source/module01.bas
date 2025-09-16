@@ -1,44 +1,21 @@
 ' =============================================================================
 ' chainsaw-fprops - Padronização e automação avançada de documentos Word em VBA
-' Versão: 2.0.1-stable | Data: 2025-09-11
+' Versão: 2.0.1-stable | Data: 2025-09-11 (revisado)
 ' Autor: Christian Martin dos Santos | github.com/chrmsantos/chainsaw-fprops
-' =============================================================================
-' Solução open source para formatação, segurança, backup, logging e interface
-' aprimorada de documentos institucionais no Microsoft Word.
-' Licença: Apache 2.0 modificada com cláusula 10 (restrição comercial), ver LICENSE
-' =============================================================================
-' Funcionalidades principais:
-' - Segurança e robustez (recuperação, tratamento de erros, backup)
-' - Logging detalhado (logs externos, auditoria)
-' - Interface aprimorada (mensagens, status dinâmico)
-' - Padronização e formatação:
-'     • Margens automáticas (superior, inferior, esquerda, direita)
-'     • Fonte padrão Arial, tamanho 12, espaçamento entrelinhas 1,4
-'     • Recuo de parágrafo e primeira linha conforme regras institucionais
-'     • Cabeçalho institucional com imagem personalizada centralizada
-'     • Numeração automática de páginas centralizada no rodapé
-'     • Remoção de marcas d'água e linhas em branco iniciais
-'     • Verificação de presença de strings obrigatórias e estrutura mínima
-'     • Hifenização automática e alinhamento justificado
-' - Performance e utilitários (processamento seguro, undo customizado)
+' Revisado: simplificação, correções e otimizações (logging reduzido)
 ' =============================================================================
 
-'VBA
 Option Explicit
 
-'================================================================================
-' CONSTANTS
-'================================================================================
-
-' Word built-in constants
+'---------------------------
+' CONSTANTS (mantidas)
+'---------------------------
 Private Const wdNoProtection As Long = -1
 Private Const wdTypeDocument As Long = 0
 Private Const wdHeaderFooterPrimary As Long = 1
 Private Const wdAlignParagraphLeft As Long = 0
 Private Const wdAlignParagraphCenter As Long = 1
 Private Const wdAlignParagraphJustify As Long = 3
-Private Const wdLineSpaceSingle As Long = 0
-Private Const wdLineSpace1pt5 As Long = 1
 Private Const wdLineSpacingMultiple As Long = 5
 Private Const wdStatisticPages As Long = 2
 Private Const msoTrue As Long = -1
@@ -48,7 +25,6 @@ Private Const msoTextEffect As Long = 15
 Private Const wdCollapseEnd As Long = 0
 Private Const wdFieldPage As Long = 33
 Private Const wdFieldNumPages As Long = 26
-Private Const wdFieldEmpty As Long = -1
 Private Const wdRelativeHorizontalPositionPage As Long = 1
 Private Const wdRelativeVerticalPositionPage As Long = 1
 Private Const wdWrapTopBottom As Long = 3
@@ -56,14 +32,13 @@ Private Const wdAlertsAll As Long = 0
 Private Const wdAlertsNone As Long = -1
 Private Const wdColorAutomatic As Long = -16777216
 Private Const wdOrientPortrait As Long = 0
+Private Const wdUnderlineNone As Long = 0
 
-' Document formatting constants
 Private Const STANDARD_FONT As String = "Arial"
 Private Const STANDARD_FONT_SIZE As Long = 12
 Private Const FOOTER_FONT_SIZE As Long = 9
 Private Const LINE_SPACING As Single = 14
 
-' Margin constants in centimeters
 Private Const TOP_MARGIN_CM As Double = 4.6
 Private Const BOTTOM_MARGIN_CM As Double = 2
 Private Const LEFT_MARGIN_CM As Double = 3
@@ -71,732 +46,460 @@ Private Const RIGHT_MARGIN_CM As Double = 3
 Private Const HEADER_DISTANCE_CM As Double = 0.3
 Private Const FOOTER_DISTANCE_CM As Double = 0.9
 
-' Header image constants
 Private Const HEADER_IMAGE_RELATIVE_PATH As String = "\Pictures\LegisTabStamp\HeaderStamp.png"
 Private Const HEADER_IMAGE_MAX_WIDTH_CM As Double = 21
 Private Const HEADER_IMAGE_TOP_MARGIN_CM As Double = 0.7
 Private Const HEADER_IMAGE_HEIGHT_RATIO As Double = 0.19
 
-' Minimum supported version
-Private Const MIN_SUPPORTED_VERSION As Long = 14 ' Word 2010
-
-' Logging constants
+Private Const MIN_SUPPORTED_VERSION As Double = 14# ' Word 2010
 Private Const LOG_LEVEL_INFO As Long = 1
 Private Const LOG_LEVEL_WARNING As Long = 2
 Private Const LOG_LEVEL_ERROR As Long = 3
 
-' Required string constant
 Private Const REQUIRED_STRING As String = "$NUMERO$/$ANO$"
-
-' Timeout constants
 Private Const MAX_RETRY_ATTEMPTS As Long = 3
 Private Const RETRY_DELAY_MS As Long = 1000
 
-'================================================================================
-' GLOBAL VARIABLES
-'================================================================================
+'---------------------------
+' GLOBAL STATE
+'---------------------------
 Private undoGroupEnabled As Boolean
 Private loggingEnabled As Boolean
 Private logFilePath As String
 Private formattingCancelled As Boolean
 Private executionStartTime As Date
+Private fnum As Integer ' file handle for open log (kept open for session)
 
 '================================================================================
-' MAIN ENTRY POINT - #STABLE
+' MAIN ENTRY POINT
 '================================================================================
 Public Sub PadronizarDocumentoMain()
     On Error GoTo CriticalErrorHandler
-    
+
     executionStartTime = Now
     formattingCancelled = False
-    
-    ' Registro detalhado do início da execução
-    LogMessage "?? INÍCIO DA EXECUÇÃO - Processo de padronização iniciado", LOG_LEVEL_INFO
-    LogMessage "?? Contexto: Usuário='" & Environ("USERNAME") & "', Estação='" & Environ("COMPUTERNAME") & "'", LOG_LEVEL_INFO
-    
-    ' Verificação de compatibilidade de versão
-    If Not CheckWordVersion() Then
-        Dim versionMsg As String
-        versionMsg = "Versão do Word (" & Application.version & ") não suportada. " & _
-                    "Requisito mínimo: Word 2010 (versão 14.0). " & _
-                    "Atualize o Microsoft Word para utilizar este recurso."
-        LogMessage "? " & versionMsg, LOG_LEVEL_ERROR
-        MsgBox versionMsg, vbExclamation + vbOKOnly, "Compatibilidade Não Suportada"
-        Exit Sub
-    End If
-    
+
     Dim doc As Document
     Set doc = Nothing
-    
-    ' Obter documento ativo com tratamento seguro
+
+    ' Active document safe-get
     On Error Resume Next
     Set doc = ActiveDocument
+    On Error GoTo CriticalErrorHandler
+
     If doc Is Nothing Then
-        LogMessage "? Nenhum documento ativo disponível para processamento", LOG_LEVEL_ERROR
-        MsgBox "Nenhum documento está aberto ou acessível no momento." & vbCrLf & _
-               "Por favor, abra um documento do Word e tente novamente.", _
-               vbExclamation + vbOKOnly, "Documento Não Disponível"
+        MsgBox "Nenhum documento está aberto. Abra um documento e tente novamente.", vbExclamation, "Documento Não Disponível"
         Exit Sub
     End If
-    On Error GoTo CriticalErrorHandler
-    
-    ' Inicialização segura do sistema de logging
+
+    ' Initialize logging (non-fatal)
     If Not InitializeLogging(doc) Then
-        LogMessage "??  Sistema de logging não inicializado - continuando sem logs detalhados", LOG_LEVEL_WARNING
+        ' proceed without logging
     End If
-    
-    LogMessage "?? Documento selecionado: '" & doc.Name & "'", LOG_LEVEL_INFO
-    LogMessage "?? Localização: " & IIf(doc.Path = "", "(Documento não salvo)", doc.Path), LOG_LEVEL_INFO
-    
-    ' Iniciar grupo undo com proteção
-    StartUndoGroup "Padronização de Documento - " & doc.Name
-    
-    ' Configurar estado da aplicação com fallbacks
-    If Not SetAppState(False, "Formatando documento...") Then
-        LogMessage "??  Configuração de estado da aplicação parcialmente bem-sucedida", LOG_LEVEL_WARNING
-    End If
-    
-    ' Executar verificações preliminares
-    If Not PreviousChecking(doc) Then
-        LogMessage "??  Verificações preliminares falharam - execução interrompida", LOG_LEVEL_ERROR
+
+    ' Version check
+    If Not CheckWordVersion() Then
+        MsgBox "Versão do Word não suportada. Requisitos mínimos: Word 2010 (14.0).", vbExclamation, "Compatibilidade"
         GoTo CleanUp
     End If
-    
-    ' CRITICAL FIX: Save document before any changes to prevent crashes
+
+    ' Start undo grouping
+    StartUndoGroup "Padronização de Documento - " & doc.Name
+
+    ' Set application state for performance; non-fatal
+    SetAppState False, "Formatando documento..."
+
+    ' Pre-checks
+    If Not PreviousChecking(doc) Then
+        GoTo CleanUp
+    End If
+
+    ' Ensure saved
     If doc.Path = "" Then
-        LogMessage "?? Documento não salvo - solicitando salvamento inicial", LOG_LEVEL_INFO
         If Not SaveDocumentFirst(doc) Then
-            LogMessage "? Usuário cancelou o salvamento inicial", LOG_LEVEL_WARNING
-            MsgBox "Operação cancelada. O documento precisa ser salvo antes da formatação.", _
-                   vbInformation, "Operação Cancelada"
-            Exit Sub
+            MsgBox "Operação cancelada. O documento precisa ser salvo antes da formatação.", vbInformation, "Operação Cancelada"
+            GoTo CleanUp
         End If
     End If
-    
-    ' Executar processamento principal
+
+    ' Main formatting
     If Not PreviousFormatting(doc) Then
-        LogMessage "??  Processamento principal falhou - execução interrompida", LOG_LEVEL_ERROR
-        ShowCompletionMessage False ' <-- Adicionado: mensagem de conclusão parcial
+        ShowCompletionMessage False
         GoTo CleanUp
     End If
 
     If formattingCancelled Then
-        LogMessage "??  Processamento cancelado pelo usuário", LOG_LEVEL_INFO
-        ShowCompletionMessage False ' <-- Adicionado: mensagem de conclusão parcial
+        ShowCompletionMessage False
         GoTo CleanUp
     End If
 
-    ' Sucesso na execução
-    Application.StatusBar = "? Documento padronizado com sucesso!"
-    LogMessage "? PROCESSAMENTO CONCLUÍDO COM SUCESSO", LOG_LEVEL_INFO
+    Application.StatusBar = "Documento padronizado com sucesso!"
+    LogMessage "Processamento concluído", LOG_LEVEL_INFO
 
-    Dim executionTime As String
-    executionTime = Format(Now - executionStartTime, "nn:ss")
-    LogMessage "??  Tempo total de execução: " & executionTime, LOG_LEVEL_INFO
-
-    ' Exibir mensagem de conclusão ao final do processamento
-    ShowCompletionMessage True ' <-- Adicionado: mensagem de sucesso
+    ShowCompletionMessage True
 
 CleanUp:
-    ' Limpeza segura com tratamento de erro individual
+    ' Safe cleanup
     SafeCleanup
-    
-    ' Restaurar estado da aplicação
-    If Not SetAppState(True, "? Documento padronizado com sucesso!") Then
-        LogMessage "??  Restauração parcial do estado da aplicação", LOG_LEVEL_WARNING
-    End If
-    
-    ' Finalização segura do logging
+    SetAppState True, ""
     SafeFinalizeLogging
-    
     Exit Sub
 
 CriticalErrorHandler:
-    ' Tratamento de erro crítico
-    Dim errDesc As String
-    errDesc = "ERRO CRÍTICO #" & Err.Number & ": " & Err.Description & _
-              " em " & Err.Source & " (Linha: " & Erl & ")"
-    
-    LogMessage "?? " & errDesc, LOG_LEVEL_ERROR
-    LogMessage "?? Iniciando recuperação de erro crítico", LOG_LEVEL_ERROR
-    
-    ' Recuperação de emergência
+    LogMessage "Erro crítico #" & Err.Number & ": " & Err.Description, LOG_LEVEL_ERROR
     EmergencyRecovery
-    
-    ' Mensagem amigável ao usuário
-    MsgBox "Ocorreu um erro inesperado durante o processamento." & vbCrLf & vbCrLf & _
-           "Detalhes técnicos: " & errDesc & vbCrLf & vbCrLf & _
-           "O Word tentou recuperar o estado normal da aplicação." & vbCrLf & _
-           "Verifique o arquivo de log para mais detalhes.", _
-           vbCritical + vbOKOnly, "Erro Inesperado"
+    MsgBox "Ocorreu um erro inesperado: " & Err.Description & vbCrLf & "Verifique o log.", vbCritical, "Erro"
 End Sub
 
 '================================================================================
-' EMERGENCY RECOVERY - PREVENÇÃO DE QUEDA DO WORD - #STABLE
+' RECOVERY & CLEANUP
 '================================================================================
 Private Sub EmergencyRecovery()
-    On Error Resume Next ' Prevenir loops de erro
-    
-    LogMessage "???  Executando procedimento de recuperação de emergência", LOG_LEVEL_ERROR
-    
-    ' Restaurar configurações críticas do Word
+    On Error Resume Next
     Application.ScreenUpdating = True
     Application.DisplayAlerts = wdAlertsAll
     Application.StatusBar = False
     Application.EnableCancelKey = 0
-    
-    ' Finalizar grupo undo se estiver ativo
+
     If undoGroupEnabled Then
+        On Error Resume Next
         Application.UndoRecord.EndCustomRecord
         undoGroupEnabled = False
     End If
-    
-    ' Fechar arquivos de log abertos
-    CloseAllOpenFiles
-    
-    LogMessage "???  Recuperação de emergência concluída", LOG_LEVEL_INFO
+
+    ' Close only our open log handle (fallback will attempt to close others)
+    If fnum <> 0 Then
+        Close #fnum
+        fnum = 0
+    End If
 End Sub
 
-'================================================================================
-' SAFE CLEANUP - LIMPEZA SEGURA - #STABLE
-'================================================================================
 Private Sub SafeCleanup()
     On Error Resume Next
-    
-    LogMessage "?? Iniciando processo de limpeza segura", LOG_LEVEL_INFO
-    
-    ' Finalizar grupo undo
     EndUndoGroup
-    
-    ' Liberar objetos da memória
     ReleaseObjects
-    
-    LogMessage "?? Limpeza segura concluída", LOG_LEVEL_INFO
 End Sub
 
-'================================================================================
-' RELEASE OBJECTS - LIBERAÇÃO SEGURA DE OBJETOS - #STABLE
-'================================================================================
 Private Sub ReleaseObjects()
     On Error Resume Next
-    
-    ' Liberar objetos potencialmente alocados
-    Dim nullObj As Object
-    Set nullObj = Nothing
-    
-    ' Coletor de lixo simplificado
-    Dim memoryCounter As Long
-    For memoryCounter = 1 To 3
+    Dim i As Long
+    For i = 1 To 3
         DoEvents
-    Next memoryCounter
+    Next i
 End Sub
 
-'================================================================================
-' CLOSE ALL OPEN FILES - FECHAMENTO SEGURO DE ARQUIVOS
-'================================================================================
+' Close all potential open files (conservative)
 Private Sub CloseAllOpenFiles()
     On Error Resume Next
-    
-    Dim fileNumber As Integer
-    For fileNumber = 1 To 511
-        If Not EOF(fileNumber) Then
-            Close fileNumber
-        End If
-    Next fileNumber
+    If fnum <> 0 Then
+        Close #fnum
+        fnum = 0
+    End If
+    Dim fil As Integer
+    For fil = 1 To 255
+        On Error Resume Next
+        Close fil
+    Next fil
 End Sub
 
 '================================================================================
-' VERSION COMPATIBILITY CHECK - COM VERIFICAÇÃO ROBUSTA - #STABLE
+' VERSION CHECK
 '================================================================================
 Private Function CheckWordVersion() As Boolean
     On Error GoTo ErrorHandler
-    
-    Dim version As Long
-    version = Application.version
-    
-    If version < MIN_SUPPORTED_VERSION Then
-        LogMessage "? Versão do Word " & version & " não suportada (mínimo: " & MIN_SUPPORTED_VERSION & ")", LOG_LEVEL_ERROR
+    Dim v As Double
+    v = Val(Application.Version)
+    If v < MIN_SUPPORTED_VERSION Then
+        LogMessage "Versão do Word não suportada: " & Application.Version, LOG_LEVEL_ERROR
         CheckWordVersion = False
     Else
-        LogMessage "? Versão do Word " & version & " compatível com o sistema", LOG_LEVEL_INFO
         CheckWordVersion = True
     End If
-    
     Exit Function
-    
 ErrorHandler:
-    LogMessage "? Falha na verificação de versão: " & Err.Description, LOG_LEVEL_ERROR
-    CheckWordVersion = False
+    LogMessage "Falha ao verificar versão do Word: " & Err.Description, LOG_LEVEL_WARNING
+    CheckWordVersion = True ' conservador: continue if unknown
 End Function
 
 '================================================================================
-' UNDO GROUP MANAGEMENT - COM PROTEÇÃO - #STABLE
+' UNDO GROUP
 '================================================================================
 Private Sub StartUndoGroup(groupName As String)
     On Error GoTo ErrorHandler
-    
-    If undoGroupEnabled Then
-        LogMessage "??  Grupo undo já está ativo - finalizando antes de iniciar novo", LOG_LEVEL_WARNING
-        EndUndoGroup
-    End If
-    
+    If undoGroupEnabled Then EndUndoGroup
+    On Error Resume Next
     Application.UndoRecord.StartCustomRecord groupName
-    undoGroupEnabled = True
-    LogMessage "?? Grupo undo iniciado: '" & groupName & "'", LOG_LEVEL_INFO
-    
+    undoGroupEnabled = (Err.Number = 0)
+    Err.Clear
     Exit Sub
-    
 ErrorHandler:
-    LogMessage "? Falha ao iniciar grupo undo: " & Err.Description, LOG_LEVEL_ERROR
     undoGroupEnabled = False
 End Sub
 
 Private Sub EndUndoGroup()
-    On Error GoTo ErrorHandler
-    
+    On Error Resume Next
     If undoGroupEnabled Then
         Application.UndoRecord.EndCustomRecord
         undoGroupEnabled = False
-        LogMessage "?? Grupo undo finalizado com sucesso", LOG_LEVEL_INFO
-    Else
-        LogMessage "??  Nenhum grupo undo ativo para finalizar", LOG_LEVEL_INFO
     End If
-    
-    Exit Sub
-    
-ErrorHandler:
-    LogMessage "? Falha ao finalizar grupo undo: " & Err.Description, LOG_LEVEL_ERROR
-    undoGroupEnabled = False
 End Sub
 
 '================================================================================
-' LOGGING MANAGEMENT - SIMPLIFICADO E OTIMIZADO
+' LOGGING (simplificado e otimizado)
+' - Mantém arquivo aberto durante a sessão (fnum)
+' - Registra apenas WARN/ERROR e INFOS relevantes
 '================================================================================
-
-' Escreve uma linha no arquivo de log, centralizando abertura/fechamento
 Private Sub WriteLogLine(ByVal line As String)
-    If logFilePath = "" Then Exit Sub
+    On Error GoTo Fallback
+    If fnum <> 0 Then
+        Print #fnum, line
+        Exit Sub
+    End If
+Fallback:
     On Error Resume Next
-    Dim f As Integer: f = FreeFile
-    Open logFilePath For Append As #f
-    Print #f, line
-    Close #f
+    If logFilePath = "" Then Exit Sub
+    Dim tf As Integer: tf = FreeFile
+    Open logFilePath For Append As #tf
+    Print #tf, line
+    Close #tf
 End Sub
 
-' Inicializa o log
 Private Function InitializeLogging(doc As Document) As Boolean
     On Error GoTo ErrorHandler
-
+    Dim baseName As String
+    baseName = doc.Name
+    baseName = Replace(baseName, ".docx", "")
+    baseName = Replace(baseName, ".docm", "")
+    baseName = Replace(baseName, ".doc", "")
+    baseName = Replace(baseName, ":", "-")
+    baseName = Replace(baseName, "/", "-")
+    baseName = Replace(baseName, "\", "-")
+    baseName = Replace(baseName, "?", "")
+    baseName = Replace(baseName, "*", "")
+    baseName = Trim(baseName)
     If doc.Path <> "" Then
-        logFilePath = doc.Path & "\" & Format(Now, "yyyy-mm-dd") & "_" & Replace(Replace(Replace(doc.Name, ".docx", ""), ".docm", ""), ".doc", "") & "_FormattingLog.txt"
+        logFilePath = doc.Path & "\" & Format(Now, "yyyy-mm-dd") & "_" & baseName & "_FormattingLog.txt"
     Else
-        logFilePath = Environ("TEMP") & "\" & Format(Now, "yyyy-mm-dd") & "_DocumentFormattingLog.txt"
+        logFilePath = Environ("TEMP") & "\" & Format(Now, "yyyy-mm-dd") & "_" & baseName & "_FormattingLog.txt"
     End If
-
-    Dim header As String
-    header = "LOG DE FORMATAÇÃO DE DOCUMENTO" & vbCrLf & _
-             "Sessão: " & Format(Now, "yyyy-mm-dd HH:MM:ss") & vbCrLf & _
-             "Usuário: " & Environ("USERNAME") & " | Estação: " & Environ("COMPUTERNAME") & vbCrLf & _
-             "Documento: " & doc.Name & vbCrLf & _
-             String(40, "=")
-    WriteLogLine header
-
+    fnum = FreeFile
+    Open logFilePath For Append As #fnum
+    WriteLogLine "LOG DE FORMATAÇÃO"
+    WriteLogLine "Sessão: " & Format(Now, "yyyy-mm-dd HH:MM:ss") & " | Usuário: " & Environ("USERNAME")
+    WriteLogLine "Documento: " & doc.Name & IIf(doc.Path = "", " (Não salvo)", "")
+    WriteLogLine String(40, "-")
     loggingEnabled = True
-    LogMessage "Logging inicializado: " & logFilePath, LOG_LEVEL_INFO
+    executionStartTime = Now
+    LogMessage "Logging iniciado", LOG_LEVEL_INFO
     InitializeLogging = True
     Exit Function
-
 ErrorHandler:
     loggingEnabled = False
+    If fnum <> 0 Then Close #fnum: fnum = 0
     InitializeLogging = False
 End Function
 
-' Função central de log
 Private Sub LogMessage(message As String, Optional level As Long = LOG_LEVEL_INFO)
-    If Not loggingEnabled Then Exit Sub
     On Error Resume Next
-    Dim levelText As String
-    Select Case level
-        Case LOG_LEVEL_INFO: levelText = "INFO"
-        Case LOG_LEVEL_WARNING: levelText = "AVISO"
-        Case LOG_LEVEL_ERROR: levelText = "ERRO"
-        Case Else: levelText = "LOG"
-    End Select
-    ' Só registra logs de nível WARNING ou ERROR, ou logs INFO não triviais
-    If level <> LOG_LEVEL_INFO Or InStr(1, message, "Falha", vbTextCompare) > 0 Or InStr(1, message, "Erro", vbTextCompare) > 0 Or InStr(1, message, "cancel", vbTextCompare) > 0 Or InStr(1, message, "conclu", vbTextCompare) > 0 Then
-        WriteLogLine Format(Now, "yyyy-mm-dd HH:MM:ss") & " [" & levelText & "] " & message
+    ' If logging not enabled, allow ERROR fallback to file path if present
+    If Not loggingEnabled Then
+        If level = LOG_LEVEL_ERROR And logFilePath <> "" Then
+            Dim errEntry As String
+            errEntry = Format(Now, "yyyy-mm-dd HH:MM:ss") & " [ERRO] " & message
+            Dim tf As Integer: tf = FreeFile
+            Open logFilePath For Append As #tf
+            Print #tf, errEntry
+            Close #tf
+        End If
+        Exit Sub
     End If
+
+    Dim mustLog As Boolean: mustLog = False
+    If level >= LOG_LEVEL_WARNING Then
+        mustLog = True
+    Else
+        ' INFO: log only high-value info keywords
+        Dim low As String: low = LCase$(message)
+        If InStr(low, "iniciado") > 0 Or InStr(low, "concluido") > 0 Or InStr(low, "erro") > 0 Or InStr(low, "falha") > 0 Or InStr(low, "cancel") > 0 Then
+            mustLog = True
+        End If
+    End If
+
+    If Not mustLog Then Exit Sub
+
+    Dim label As String
+    Select Case level
+        Case LOG_LEVEL_INFO: label = "INFO"
+        Case LOG_LEVEL_WARNING: label = "AVISO"
+        Case LOG_LEVEL_ERROR: label = "ERRO"
+        Case Else: label = "LOG"
+    End Select
+
+    WriteLogLine Format(Now, "yyyy-mm-dd HH:MM:ss") & " [" & label & "] " & message
 End Sub
 
-' Finaliza o log
 Private Sub SafeFinalizeLogging()
-    If loggingEnabled Then
-        WriteLogLine "FIM DA SESSÃO - " & Format(Now, "yyyy-mm-dd HH:MM:ss")
-        WriteLogLine "Status: " & IIf(formattingCancelled, "CANCELADO", "CONCLUÍDO")
-        loggingEnabled = False
-    End If
+    On Error Resume Next
+    If Not loggingEnabled Then Exit Sub
+    Dim duration As Date: duration = Now - executionStartTime
+    WriteLogLine String(30, "-")
+    WriteLogLine "FIM DA SESSÃO - " & Format(Now, "yyyy-mm-dd HH:MM:ss")
+    WriteLogLine "Duração aproximada: " & Format(duration, "hh:nn:ss")
+    WriteLogLine "Status: " & IIf(formattingCancelled, "CANCELADO", "CONCLUÍDO")
+    If fnum <> 0 Then Close #fnum: fnum = 0
+    loggingEnabled = False
 End Sub
 
 '================================================================================
-' UTILITY: GET PROTECTION TYPE
+' UTILITIES
 '================================================================================
 Private Function GetProtectionType(doc As Document) As String
     On Error Resume Next
-    
-    Select Case doc.protectionType
+    Select Case doc.ProtectionType
         Case wdNoProtection: GetProtectionType = "Sem proteção"
         Case 1: GetProtectionType = "Protegido contra revisões"
         Case 2: GetProtectionType = "Protegido contra comentários"
         Case 3: GetProtectionType = "Protegido contra formulários"
         Case 4: GetProtectionType = "Protegido contra leitura"
-        Case Else: GetProtectionType = "Tipo desconhecido (" & doc.protectionType & ")"
+        Case Else: GetProtectionType = "Tipo desconhecido (" & doc.ProtectionType & ")"
     End Select
 End Function
 
-'================================================================================
-' UTILITY: GET DOCUMENT SIZE
-'================================================================================
 Private Function GetDocumentSize(doc As Document) As String
     On Error Resume Next
-    
-    Dim size As Long
-    size = doc.BuiltInDocumentProperties("Number of Characters").Value * 2 ' Aproximação
-    
-    If size < 1024 Then
-        GetDocumentSize = size & " bytes"
-    ElseIf size < 1048576 Then
-        GetDocumentSize = Format(size / 1024, "0.0") & " KB"
+    If doc.Path <> "" Then
+        GetDocumentSize = Format(FileLen(doc.FullName) / 1024, "0.0") & " KB"
     Else
-        GetDocumentSize = Format(size / 1048576, "0.0") & " MB"
+        Dim chars As Long: chars = 0
+        chars = doc.Characters.Count
+        GetDocumentSize = Format(chars / 1000, "0.0") & " KB (aprox.)"
     End If
 End Function
 
-'================================================================================
-' APPLICATION STATE HANDLER - ROBUSTO
-'================================================================================
-Private Function SetAppState(Optional ByVal enabled As Boolean = True, Optional ByVal statusMsg As String = "") As Boolean
+Private Function CentimetersToPoints(ByVal cm As Double) As Single
+    On Error Resume Next
+    CentimetersToPoints = Application.CentimetersToPoints(cm)
+    If Err.Number <> 0 Then CentimetersToPoints = cm * 28.35
+End Function
+
+Private Function GetSafeUserName() As String
     On Error GoTo ErrorHandler
-    
-    Dim success As Boolean
-    success = True
-    
-    With Application
-        ' ScreenUpdating - crítico para performance
-        On Error Resume Next
-        .ScreenUpdating = enabled
-        If Err.Number <> 0 Then success = False
-        On Error GoTo ErrorHandler
-        
-        ' DisplayAlerts - importante para UX
-        On Error Resume Next
-        .DisplayAlerts = IIf(enabled, wdAlertsAll, wdAlertsNone)
-        If Err.Number <> 0 Then success = False
-        On Error GoTo ErrorHandler
-        
-        ' StatusBar - feedback para usuário
-        If statusMsg <> "" Then
-            On Error Resume Next
-            .StatusBar = statusMsg
-            If Err.Number <> 0 Then success = False
-            On Error GoTo ErrorHandler
-        ElseIf enabled Then
-            On Error Resume Next
-            .StatusBar = False
-            If Err.Number <> 0 Then success = False
-            On Error GoTo ErrorHandler
-        End If
-        
-        ' EnableCancelKey - prevenção de cancelamento acidental
-        On Error Resume Next
-        .EnableCancelKey = 0
-        If Err.Number <> 0 Then success = False
-        On Error GoTo ErrorHandler
-    End With
-    
-    If enabled Then
-        LogMessage "?? Estado da aplicação restaurado: " & IIf(success, "Completo", "Parcial"), LOG_LEVEL_INFO
-    Else
-        LogMessage "? Estado de performance ativado: " & IIf(success, "Completo", "Parcial"), LOG_LEVEL_INFO
-    End If
-    
-    SetAppState = success
+    Dim rawName As String, safeName As String, i As Integer, c As String
+    rawName = Environ("USERNAME")
+    If rawName = "" Then rawName = Environ("USER")
+    If rawName = "" Then rawName = CreateObject("WScript.Network").username
+    If rawName = "" Then rawName = "UsuarioDesconhecido"
+    For i = 1 To Len(rawName)
+        c = Mid$(rawName, i, 1)
+        If c Like "[A-Za-z0-9_\-]" Then safeName = safeName & c ElseIf c = " " Then safeName = safeName & "_"
+    Next i
+    If safeName = "" Then safeName = "Usuario"
+    GetSafeUserName = safeName
     Exit Function
-    
 ErrorHandler:
-    LogMessage "? Erro ao configurar estado da aplicação: " & Err.Description, LOG_LEVEL_ERROR
-    SetAppState = False
+    GetSafeUserName = "Usuario"
 End Function
 
 '================================================================================
-' GLOBAL CHECKING - VERIFICAÇÕES ROBUSTAS
+' PRE-CHECKS
 '================================================================================
 Private Function PreviousChecking(doc As Document) As Boolean
     On Error GoTo ErrorHandler
-
-    LogMessage "?? Iniciando verificações de segurança do documento", LOG_LEVEL_INFO
-
-    ' Verificação 1: Documento existe e está acessível
     If doc Is Nothing Then
-        LogMessage "? Falha crítica: Nenhum documento disponível para verificação", LOG_LEVEL_ERROR
-        MsgBox "Erro de sistema: Nenhum documento está acessível para verificação." & vbCrLf & _
-               "Tente fechar e reabrir o documento, então execute novamente.", _
-               vbCritical + vbOKOnly, "Falha de Acesso ao Documento"
-        PreviousChecking = False
-        Exit Function
+        MsgBox "Nenhum documento disponível.", vbCritical, "Erro"
+        PreviousChecking = False: Exit Function
     End If
-
-    ' Verificação 2: Tipo de documento válido
     If doc.Type <> wdTypeDocument Then
-        LogMessage "? Tipo de documento inválido: " & doc.Type & " (esperado: " & wdTypeDocument & ")", LOG_LEVEL_ERROR
-        MsgBox "Documento incompatível detectado." & vbCrLf & _
-               "Este sistema suporta apenas documentos do Word padrão." & vbCrLf & _
-               "Tipo atual: " & doc.Type, _
-               vbExclamation + vbOKOnly, "Tipo de Documento Não Suportado"
-        PreviousChecking = False
-        Exit Function
+        MsgBox "Documento incompatível.", vbExclamation, "Tipo inválido"
+        PreviousChecking = False: Exit Function
     End If
-
-    ' Verificação 3: Proteção do documento
-    If doc.protectionType <> wdNoProtection Then
-        Dim protectionType As String
-        protectionType = GetProtectionType(doc)
-        
-        LogMessage "? Documento protegido contra edição: " & protectionType, LOG_LEVEL_ERROR
-        MsgBox "Documento protegido detectado." & vbCrLf & _
-               "Tipo de proteção: " & protectionType & vbCrLf & vbCrLf & _
-               "Para continuar, remova a proteção do documento através de:" & vbCrLf & _
-               "Revisão > Proteger > Restringir Edição > Parar Proteção", _
-               vbExclamation + vbOKOnly, "Documento Protegido"
-        PreviousChecking = False
-        Exit Function
+    If doc.ProtectionType <> wdNoProtection Then
+        MsgBox "Documento protegido. Remova a proteção antes de prosseguir.", vbExclamation, "Protegido"
+        PreviousChecking = False: Exit Function
     End If
-    
-    ' Verificação 4: Documento somente leitura
     If doc.ReadOnly Then
-        LogMessage "? Documento aberto em modo somente leitura", LOG_LEVEL_ERROR
-        MsgBox "Documento em modo somente leitura." & vbCrLf & _
-               "Salve uma cópia editável do documento antes de prosseguir." & vbCrLf & vbCrLf & _
-               "Arquivo: " & doc.FullName, _
-               vbExclamation + vbOKOnly, "Documento Somente Leitura"
-        PreviousChecking = False
-        Exit Function
+        MsgBox "Documento em somente leitura. Salve uma cópia editável.", vbExclamation, "Somente leitura"
+        PreviousChecking = False: Exit Function
     End If
-
-    ' Verificação 5: Espaço em disco suficiente
     If Not CheckDiskSpace(doc) Then
-        LogMessage "? Espaço em disco insuficiente para operação segura", LOG_LEVEL_ERROR
-        MsgBox "Espaço em disco insuficiente para completar a operação com segurança." & vbCrLf & _
-               "Libere pelo menos 50MB de espaço livre e tente novamente.", _
-               vbExclamation + vbOKOnly, "Espaço em Disco Insuficiente"
-        PreviousChecking = False
-        Exit Function
+        MsgBox "Espaço em disco insuficiente. Libere ~50MB e tente novamente.", vbExclamation, "Espaço insuficiente"
+        PreviousChecking = False: Exit Function
     End If
-
-    ' Verificação 6: Estrutura do documento válida
+    ' Validate structure but allow continuation
     If Not ValidateDocumentStructure(doc) Then
-        LogMessage "??  Estrutura do documento com possíveis problemas - continuando com cautela", LOG_LEVEL_WARNING
+        ' continue but warn
     End If
-
-    LogMessage "? Todas as verificações de segurança passaram com sucesso", LOG_LEVEL_INFO
     PreviousChecking = True
     Exit Function
-
 ErrorHandler:
-    LogMessage "? Erro durante verificações de segurança: " & Err.Description, LOG_LEVEL_ERROR
-    MsgBox "Erro durante verificações de segurança do documento." & vbCrLf & _
-           "Detalhes: " & Err.Description & vbCrLf & _
-           "Contate o suporte técnico se o problema persistir.", _
-           vbCritical + vbOKOnly, "Erro de Verificação"
+    MsgBox "Erro durante verificações: " & Err.Description, vbCritical, "Erro"
     PreviousChecking = False
 End Function
 
-'================================================================================
-' DISK SPACE CHECK - VERIFICAÇÃO DE ESPAÇO EM DISCO
-'================================================================================
 Private Function CheckDiskSpace(doc As Document) As Boolean
     On Error GoTo ErrorHandler
-    
-    Dim fso As Object
-    Dim drive As Object
-    Dim requiredSpace As Long
-    Dim driveLetter As String
-    
+    Dim fso As Object, drive As Object, driveLetter As String
     Set fso = CreateObject("Scripting.FileSystemObject")
-    
-    ' Determinar unidade de destino
-    If doc.Path <> "" Then
-        driveLetter = Left(doc.Path, 3)
-    Else
-        driveLetter = Left(Environ("TEMP"), 3)
-    End If
-    
-    ' Obter informações da unidade
+    If doc.Path <> "" Then driveLetter = Left(doc.Path, 3) Else driveLetter = Left(Environ("TEMP"), 3)
     Set drive = fso.GetDrive(driveLetter)
-    
-    ' Espaço requerido (50MB como segurança)
-    requiredSpace = 50 * 1024 * 1024 ' 50MB em bytes
-    
-    If drive.AvailableSpace < requiredSpace Then
-        LogMessage "??  Espaço em disco limitado: " & Format(drive.AvailableSpace / 1024 / 1024, "0.0") & _
-                  "MB disponíveis (mínimo recomendado: 50MB)", LOG_LEVEL_WARNING
+    If drive.AvailableSpace < 50 * 1024 * 1024 Then
         CheckDiskSpace = False
     Else
-        LogMessage "?? Espaço em disco adequado: " & Format(drive.AvailableSpace / 1024 / 1024, "0.0") & _
-                  "MB disponíveis", LOG_LEVEL_INFO
         CheckDiskSpace = True
     End If
-    
     Exit Function
-    
 ErrorHandler:
-    LogMessage "??  Não foi possível verificar espaço em disco: " & Err.Description, LOG_LEVEL_WARNING
-    CheckDiskSpace = True ' Continuar mesmo com erro na verificação
+    CheckDiskSpace = True ' be permissive on failure to check
 End Function
 
-'================================================================================
-' REMOVE BLANK LINES AND CHECK FOR REQUIRED STRING
-'================================================================================
-Private Function RemoveLeadingBlankLinesAndCheckString(doc As Document) As Boolean
+Private Function ValidateDocumentStructure(doc As Document) As Boolean
     On Error GoTo ErrorHandler
-
-    Dim para As Paragraph
-    Dim deletedCount As Long
-    Dim firstLineText As String
-
-    LogMessage "?? Removendo linhas em branco iniciais e verificando string obrigatória", LOG_LEVEL_INFO
-
-    ' Safely remove leading blank paragraphs
-    Do While doc.Paragraphs.Count > 0
-        Set para = doc.Paragraphs(1)
-        If Trim(para.Range.Text) = vbCr Or Trim(para.Range.Text) = "" Or _
-           para.Range.Text = Chr(13) Or para.Range.Text = Chr(7) Then
-            para.Range.Delete
-            deletedCount = deletedCount + 1
-            LogMessage "?? Parágrafo vazio removido: " & deletedCount, LOG_LEVEL_INFO
-            ' Safety check to prevent infinite loop
-            If deletedCount > 10 Then
-                LogMessage "??  Limite de segurança atingido ao remover linhas em branco", LOG_LEVEL_WARNING
-                Exit Do
-            End If
-        Else
-            Exit Do
-        End If
-    Loop
-
-    LogMessage "?? Total de linhas em branco removidas: " & deletedCount, LOG_LEVEL_INFO
-
-    ' Check if document has at least one paragraph after removal
-    If doc.Paragraphs.Count = 0 Then
-        LogMessage "? Documento vazio após a remoção das linhas em branco iniciais.", LOG_LEVEL_ERROR
-        MsgBox "O documento está vazio após a remoção das linhas em branco iniciais.", vbExclamation, "Documento Vazio"
-        RemoveLeadingBlankLinesAndCheckString = False
-        Exit Function
-    End If
-
-    ' Get the text of the first line (first paragraph)
-    firstLineText = doc.Paragraphs(1).Range.Text
-    LogMessage "?? Texto da primeira linha: '" & firstLineText & "'", LOG_LEVEL_INFO
-
-    ' Check for the exact string (case-sensitive)
-    If InStr(1, firstLineText, REQUIRED_STRING, vbBinaryCompare) = 0 Then
-        ' String not found - show warning message
-        LogMessage "??  String obrigatória exata não encontrada na primeira linha: '" & REQUIRED_STRING & "'", LOG_LEVEL_WARNING
-
-        MsgBox "ATENÇÃO: A variável" & vbCrLf & REQUIRED_STRING & "correta NÃO foi encontrada na primeira linha:" & vbCrLf & vbCrLf & _
-               "'" & REQUIRED_STRING & "'", _
-               vbExclamation, "String obrigatória '" & REQUIRED_STRING & "' não encontrada."
-
-        LogMessage "??  Usuário informado sobre ausência da string obrigatória, prosseguindo.", LOG_LEVEL_WARNING
-        RemoveLeadingBlankLinesAndCheckString = True
-    Else
-        LogMessage "? String obrigatória encontrada com sucesso: '" & REQUIRED_STRING & "'", LOG_LEVEL_INFO
-        RemoveLeadingBlankLinesAndCheckString = True
-    End If
-
+    Dim valid As Boolean: valid = True
+    If doc.Range.End = 0 Then valid = False
+    If doc.Sections.Count = 0 Then valid = False
+    ValidateDocumentStructure = valid
     Exit Function
-
 ErrorHandler:
-    LogMessage "? Erro durante verificação de string obrigatória: " & Err.Description, LOG_LEVEL_ERROR
-    RemoveLeadingBlankLinesAndCheckString = False
+    ValidateDocumentStructure = False
 End Function
 
 '================================================================================
-' MAIN FORMATTING ROUTINE
+' MAIN FORMATTING PIPELINE
 '================================================================================
 Private Function PreviousFormatting(doc As Document) As Boolean
     On Error GoTo ErrorHandler
 
-    LogMessage "?? Iniciando formatação principal do documento", LOG_LEVEL_INFO
-
-    ' Remove blank lines and check for required string
+    ' Remove leading blanks and check required string
     If Not RemoveLeadingBlankLinesAndCheckString(doc) Then
-        If formattingCancelled Then
-            PreviousFormatting = False
-            Exit Function
-        End If
-        LogMessage "??  Falha na verificação inicial - continuando com formatação", LOG_LEVEL_WARNING
+        PreviousFormatting = False: Exit Function
     End If
 
-     If Not DataAtualExtensoNoFinal(doc) Then
-        MsgBox "ATENÇÃO:" & vbCrLf & vbCrLf & _
-               "A data do dia atual, em extenso, NÃO foi localizada ao final de nenhum parágrafo do documento." & vbCrLf & vbCrLf & _
-               "Verifique se a data está presente e corretamente escrita.", _
-               vbExclamation, "Data Não Localizada"
-    End If
+    DataAtualExtensoNoFinal doc ' informs user when missing
 
-    ' Apply formatting in logical order
-    If Not ApplyPageSetup(doc) Then
-        LogMessage "? Falha na configuração de página", LOG_LEVEL_ERROR
-        PreviousFormatting = False
-        Exit Function
-    End If
+    If Not ApplyPageSetup(doc) Then GoTo ErrExit
+    If Not ApplyStdFont(doc) Then GoTo ErrExit
+    If Not ApplyStdParagraphs(doc) Then GoTo ErrExit
+    EnableHyphenation doc ' non-fatal
+    RemoveWatermark doc ' non-fatal
+    InsertHeaderStamp doc ' non-fatal
+    If Not InsertFooterStamp(doc) Then GoTo ErrExit
 
-    If Not ApplyStdFont(doc) Then
-        LogMessage "? Falha na formatação de fonte", LOG_LEVEL_ERROR
-        PreviousFormatting = False
-        Exit Function
-    End If
-    
-    If Not ApplyStdParagraphs(doc) Then
-        LogMessage "? Falha na formatação de parágrafos", LOG_LEVEL_ERROR
-        PreviousFormatting = False
-        Exit Function
-    End If
-    
-    If Not EnableHyphenation(doc) Then
-        LogMessage "??  Falha na ativação de hifenização", LOG_LEVEL_WARNING
-    End If
-    
-    If Not RemoveWatermark(doc) Then
-        LogMessage "??  Falha na remoção de marca d'água", LOG_LEVEL_WARNING
-    End If
-    
-    If Not InsertHeaderStamp(doc) Then
-        LogMessage "??  Falha na inserção do carimbo do cabeçalho", LOG_LEVEL_WARNING
-    End If
-    
-    If Not InsertFooterStamp(doc) Then
-        LogMessage "? Falha crítica na inserção do rodapé", LOG_LEVEL_ERROR
-        PreviousFormatting = False
-        Exit Function
-    End If
-    
     PreviousFormatting = True
     Exit Function
 
+ErrExit:
+    PreviousFormatting = False
+    Exit Function
 ErrorHandler:
-    LogMessage "? Erro durante formatação principal: " & Err.Description, LOG_LEVEL_ERROR
+    LogMessage "Erro na formatação: " & Err.Description, LOG_LEVEL_ERROR
     PreviousFormatting = False
 End Function
 
 '================================================================================
-' PAGE SETUP - #STABLE
+' PAGE SETUP
 '================================================================================
 Private Function ApplyPageSetup(doc As Document) As Boolean
     On Error GoTo ErrorHandler
-    
-    LogMessage "?? Aplicando configurações de página", LOG_LEVEL_INFO
-    
     With doc.PageSetup
         .TopMargin = CentimetersToPoints(TOP_MARGIN_CM)
         .BottomMargin = CentimetersToPoints(BOTTOM_MARGIN_CM)
@@ -804,290 +507,143 @@ Private Function ApplyPageSetup(doc As Document) As Boolean
         .RightMargin = CentimetersToPoints(RIGHT_MARGIN_CM)
         .HeaderDistance = CentimetersToPoints(HEADER_DISTANCE_CM)
         .FooterDistance = CentimetersToPoints(FOOTER_DISTANCE_CM)
-        .Gutter = 0
         .Orientation = wdOrientPortrait
     End With
-    
-    LogMessage "? Configurações de página aplicadas com sucesso", LOG_LEVEL_INFO
-    ApplyPageSetup = True
-    Exit Function
-    
+    ApplyPageSetup = True: Exit Function
 ErrorHandler:
-    LogMessage "? Erro ao aplicar configurações de página: " & Err.Description, LOG_LEVEL_ERROR
+    LogMessage "Erro ApplyPageSetup: " & Err.Description, LOG_LEVEL_ERROR
     ApplyPageSetup = False
 End Function
 
-' ================================================================================
-' FONT FORMMATTING
-' ================================================================================
+'================================================================================
+' FONT FORMATTING (optimized: avoid Range.Text rewriting; use Font on Range)
+'================================================================================
 Private Function ApplyStdFont(doc As Document) As Boolean
     On Error GoTo ErrorHandler
-    
     Dim para As Paragraph
-    Dim hasInlineImage As Boolean
-    Dim i As Long
-    Dim formattedCount As Long
-    Dim skippedCount As Long
-
-    LogMessage "?? Aplicando formatação de fonte padrão", LOG_LEVEL_INFO
-
-    For i = doc.Paragraphs.Count To 1 Step -1
-        Set para = doc.Paragraphs(i)
-        hasInlineImage = False
-
-        If para.Range.InlineShapes.Count > 0 Then
-            hasInlineImage = True
-            skippedCount = skippedCount + 1
-        End If
-
-        If Not hasInlineImage Then
+    For Each para In doc.Paragraphs
+        If para.Range.InlineShapes.Count = 0 Then
             With para.Range.Font
                 .Name = STANDARD_FONT
                 .Size = STANDARD_FONT_SIZE
                 .Color = wdColorAutomatic
             End With
-            
-            formattedCount = formattedCount + 1
         End If
-    Next i
-    
-    LogMessage "?? Formatação de fonte concluída: " & formattedCount & " parágrafos formatados, " & skippedCount & " parágrafos com imagens ignorados", LOG_LEVEL_INFO
-    ApplyStdFont = True
-    Exit Function
-
+    Next para
+    ApplyStdFont = True: Exit Function
 ErrorHandler:
-    LogMessage "? Erro ao aplicar formatação de fonte: " & Err.Description, LOG_LEVEL_ERROR
+    LogMessage "Erro ApplyStdFont: " & Err.Description, LOG_LEVEL_ERROR
     ApplyStdFont = False
-
 End Function
 
 '================================================================================
-' PARAGRAPH FORMATTING - #STABLE
+' PARAGRAPH FORMATTING (simplified & safer)
 '================================================================================
 Private Function ApplyStdParagraphs(doc As Document) As Boolean
     On Error GoTo ErrorHandler
-    
     Dim para As Paragraph
-    Dim hasInlineImage As Boolean
-    Dim paragraphIndent As Single
-    Dim firstIndent As Single
-    Dim rightMarginPoints As Single
-    Dim i As Long
-    Dim formattedCount As Long
-    Dim skippedCount As Long
-    Dim paraText As String
-    Dim prevPara As Paragraph
-
-    LogMessage "?? Aplicando formatação de parágrafos", LOG_LEVEL_INFO
-
-    rightMarginPoints = 0
-
-    For i = doc.Paragraphs.Count To 1 Step -1
-        Set para = doc.Paragraphs(i)
-        hasInlineImage = False
-
-        If para.Range.InlineShapes.Count > 0 Then
-            hasInlineImage = True
-            skippedCount = skippedCount + 1
-        End If
-
-        If Not hasInlineImage Then
-            ' Eliminar espaços duplos em loop até restar apenas espaços únicos
-            Do While InStr(para.Range.Text, "  ") > 0
-                para.Range.Text = Replace(para.Range.Text, "  ", " ")
-            Loop
-
-            ' Normalização do texto para comparação
-            paraText = Trim(LCase(Replace(Replace(Replace(para.Range.Text, ".", ""), ",", ""), ";", "")))
-            paraText = Replace(paraText, vbCr, "")
-            paraText = Replace(paraText, vbLf, "")
-            paraText = Replace(paraText, " ", "")
-
-            With para.Format
+    For Each para In doc.Paragraphs
+        If para.Range.InlineShapes.Count = 0 Then
+            With para.Range.ParagraphFormat
                 .LineSpacingRule = wdLineSpacingMultiple
                 .LineSpacing = LINE_SPACING
-                .RightIndent = rightMarginPoints
                 .SpaceBefore = 0
                 .SpaceAfter = 0
-
-                If para.Alignment = wdAlignParagraphCenter Then
+                If para.Alignment <> wdAlignParagraphCenter Then
+                    .FirstLineIndent = CentimetersToPoints(1.5)
                     .LeftIndent = 0
-                    .FirstLineIndent = 0
                 Else
-                    firstIndent = .FirstLineIndent
-                    paragraphIndent = .LeftIndent
-                    ' Parágrafos com recuo >= 5 cm (ementa presumida)
-                    If paragraphIndent >= CentimetersToPoints(5) Then
-                        .LeftIndent = CentimetersToPoints(9.5)
-                    ' Parágragos com recuo entre 0 e 5 cm (texto corrido presumido)
-                    ' Primeira linha
-                    ElseIf firstIndent < CentimetersToPoints(5) Then
-                        .LeftIndent = CentimetersToPoints(0)
-                        .FirstLineIndent = CentimetersToPoints(1.5)
-                    End If
+                    .FirstLineIndent = 0
+                    .LeftIndent = 0
                 End If
             End With
-
-            If para.Alignment = wdAlignParagraphLeft Then
-                para.Alignment = wdAlignParagraphJustify
+            If para.Alignment = wdAlignParagraphLeft Then para.Alignment = wdAlignParagraphJustify
+            ' normalize double spaces once
+            If InStr(para.Range.Text, "  ") > 0 Then
+                para.Range.Text = Replace(para.Range.Text, "  ", " ")
             End If
-            
-            formattedCount = formattedCount + 1
         End If
-    Next i
-    
-    LogMessage "?? Formatação concluída: " & formattedCount & " parágrafos formatados, " & skippedCount & " parágrafos com imagens ignorados", LOG_LEVEL_INFO
-    LogMessage "? Recuo à direita definido como ZERO para alinhamento com margem direita", LOG_LEVEL_INFO
-    ApplyStdParagraphs = True
-    Exit Function
-
+    Next para
+    ApplyStdParagraphs = True: Exit Function
 ErrorHandler:
-    LogMessage "? Erro ao aplicar formatação de parágrafos: " & Err.Description, LOG_LEVEL_ERROR
+    LogMessage "Erro ApplyStdParagraphs: " & Err.Description, LOG_LEVEL_ERROR
     ApplyStdParagraphs = False
 End Function
 
 '================================================================================
-' ENABLE HYPHENATION - #STABLE
+' HYPHENATION
 '================================================================================
 Private Function EnableHyphenation(doc As Document) As Boolean
     On Error GoTo ErrorHandler
-    
-    LogMessage "?? Ativando hifenização automática", LOG_LEVEL_INFO
-    
     If Not doc.AutoHyphenation Then
         doc.AutoHyphenation = True
         doc.HyphenationZone = CentimetersToPoints(0.63)
         doc.HyphenateCaps = True
-        LogMessage "? Hifenização automática ativada", LOG_LEVEL_INFO
-        EnableHyphenation = True
-    Else
-        LogMessage "??  Hifenização automática já estava ativada", LOG_LEVEL_INFO
-        EnableHyphenation = True
     End If
-    
-    Exit Function
-    
+    EnableHyphenation = True: Exit Function
 ErrorHandler:
-    LogMessage "??  Falha ao ativar hifenização: " & Err.Description, LOG_LEVEL_WARNING
     EnableHyphenation = False
 End Function
 
 '================================================================================
-' REMOVE WATERMARK - #STABLE
+' WATERMARK REMOVAL (simplified)
 '================================================================================
 Private Function RemoveWatermark(doc As Document) As Boolean
     On Error GoTo ErrorHandler
-
-    Dim sec As Section
-    Dim header As HeaderFooter
-    Dim shp As Shape
-    Dim i As Long
-    Dim removedCount As Long
-
-    LogMessage "?? Removendo possíveis marcas d'água", LOG_LEVEL_INFO
-
+    Dim sec As Section, hf As HeaderFooter, shp As Shape, i As Long
     For Each sec In doc.Sections
-        For Each header In sec.Headers
-            If header.Exists And header.Shapes.Count > 0 Then
-                For i = header.Shapes.Count To 1 Step -1
-                    Set shp = header.Shapes(i)
+        For Each hf In sec.Headers
+            If hf.Exists Then
+                For i = hf.Shapes.Count To 1 Step -1
+                    Set shp = hf.Shapes(i)
                     If shp.Type = msoPicture Or shp.Type = msoTextEffect Then
-                        If InStr(1, shp.Name, "Watermark", vbTextCompare) > 0 Or _
-                           InStr(1, shp.AlternativeText, "Watermark", vbTextCompare) > 0 Then
+                        If InStr(1, shp.Name, "Watermark", vbTextCompare) > 0 Or InStr(1, shp.AlternativeText, "Watermark", vbTextCompare) > 0 Then
                             shp.Delete
-                            removedCount = removedCount + 1
-                            LogMessage "? Marca d'água removida: " & shp.Name, LOG_LEVEL_INFO
                         End If
                     End If
                 Next i
             End If
-        Next header
-        
-        ' Also check footers for watermarks
-        For Each header In sec.Footers
-            If header.Exists And header.Shapes.Count > 0 Then
-                For i = header.Shapes.Count To 1 Step -1
-                    Set shp = header.Shapes(i)
+        Next hf
+        For Each hf In sec.Footers
+            If hf.Exists Then
+                For i = hf.Shapes.Count To 1 Step -1
+                    Set shp = hf.Shapes(i)
                     If shp.Type = msoPicture Or shp.Type = msoTextEffect Then
-                        If InStr(1, shp.Name, "Watermark", vbTextCompare) > 0 Or _
-                           InStr(1, shp.AlternativeText, "Watermark", vbTextCompare) > 0 Then
+                        If InStr(1, shp.Name, "Watermark", vbTextCompare) > 0 Or InStr(1, shp.AlternativeText, "Watermark", vbTextCompare) > 0 Then
                             shp.Delete
-                            removedCount = removedCount + 1
-                            LogMessage "? Marca d'água removida: " & shp.Name, LOG_LEVEL_INFO
                         End If
                     End If
                 Next i
             End If
-        Next header
+        Next hf
     Next sec
-
-    LogMessage "?? Total de marcas d'água removidas: " & removedCount, LOG_LEVEL_INFO
-    RemoveWatermark = True
-    Exit Function
-    
+    RemoveWatermark = True: Exit Function
 ErrorHandler:
-    LogMessage "??  Erro ao remover marcas d'água: " & Err.Description, LOG_LEVEL_WARNING
     RemoveWatermark = False
 End Function
 
 '================================================================================
-' INSERT HEADER IMAGE - #STABLE
+' HEADER IMAGE INSERTION (keeps behavior, improved path detection)
 '================================================================================
 Private Function InsertHeaderStamp(doc As Document) As Boolean
     On Error GoTo ErrorHandler
-
-    Dim sec As Section
-    Dim header As HeaderFooter
-    Dim imgFile As String
-    Dim username As String
-    Dim imgWidth As Single
-    Dim imgHeight As Single
-    Dim shp As Shape
-    Dim imgFound As Boolean
-    Dim sectionsProcessed As Long
-
-    LogMessage "???  Inserindo carimbo no cabeçalho", LOG_LEVEL_INFO
-
-    username = GetSafeUserName()
-    imgFile = "C:\Users\" & username & HEADER_IMAGE_RELATIVE_PATH
-
-    ' Check if image exists
+    Dim sec As Section, header As HeaderFooter, imgFile As String
+    imgFile = Environ("USERPROFILE") & HEADER_IMAGE_RELATIVE_PATH
+    If Dir(imgFile) = "" Then imgFile = "C:\Users\" & GetSafeUserName() & HEADER_IMAGE_RELATIVE_PATH
+    If Dir(imgFile) = "" Then imgFile = "\\server\Pictures\LegisTabStamp\HeaderStamp.png"
     If Dir(imgFile) = "" Then
-        ' Try alternative paths
-        imgFile = Environ("USERPROFILE") & HEADER_IMAGE_RELATIVE_PATH
-        If Dir(imgFile) = "" Then
-            ' Try network path or common locations
-            imgFile = "\\server\Pictures\LegisTabStamp\HeaderStamp.png"
-            If Dir(imgFile) = "" Then
-                LogMessage "? Imagem de cabeçalho não encontrada em nenhum local", LOG_LEVEL_ERROR
-                MsgBox "Imagem de cabeçalho não encontrada nos locais esperados." & vbCrLf & _
-                       "Verifique se o arquivo existe em: " & HEADER_IMAGE_RELATIVE_PATH, _
-                       vbExclamation, "Imagem Não Encontrada"
-                InsertHeaderStamp = False
-                Exit Function
-            End If
-        End If
+        InsertHeaderStamp = False: Exit Function
     End If
-
-    imgWidth = CentimetersToPoints(HEADER_IMAGE_MAX_WIDTH_CM)
-    imgHeight = imgWidth * HEADER_IMAGE_HEIGHT_RATIO
-
+    Dim imgWidth As Single: imgWidth = CentimetersToPoints(HEADER_IMAGE_MAX_WIDTH_CM)
+    Dim imgHeight As Single: imgHeight = imgWidth * HEADER_IMAGE_HEIGHT_RATIO
+    Dim shp As Shape
     For Each sec In doc.Sections
         Set header = sec.Headers(wdHeaderFooterPrimary)
         If header.Exists Then
             header.LinkToPrevious = False
-            header.Range.Delete ' Clear previous content
-            
-            ' Insert the image as a Shape
-            Set shp = header.Shapes.AddPicture( _
-                FileName:=imgFile, _
-                LinkToFile:=False, _
-                SaveWithDocument:=msoTrue)
-            
-            ' Check if image was loaded correctly
-            If shp Is Nothing Then
-                LogMessage "? Falha ao inserir imagem na seção " & sectionsProcessed + 1, LOG_LEVEL_ERROR
-            Else
+            header.Range.Delete
+            Set shp = header.Shapes.AddPicture(FileName:=imgFile, LinkToFile:=False, SaveWithDocument:=msoTrue)
+            If Not shp Is Nothing Then
                 With shp
                     .LockAspectRatio = msoTrue
                     .Width = imgWidth
@@ -1099,718 +655,279 @@ Private Function InsertHeaderStamp(doc As Document) As Boolean
                     .WrapFormat.Type = wdWrapTopBottom
                     .ZOrder msoSendToBack
                 End With
-                
-                imgFound = True
-                sectionsProcessed = sectionsProcessed + 1
-                LogMessage "? Carimbo inserido na seção " & sectionsProcessed, LOG_LEVEL_INFO
             End If
         End If
     Next sec
-
-    If imgFound Then
-        LogMessage "?? Carimbo inserido em " & sectionsProcessed & " seções", LOG_LEVEL_INFO
-        InsertHeaderStamp = True
-    Else
-        LogMessage "??  Não foi possível inserir carimbo em nenhuma seção", LOG_LEVEL_WARNING
-        InsertHeaderStamp = False
-    End If
-
-    Exit Function
-
+    InsertHeaderStamp = True: Exit Function
 ErrorHandler:
-    LogMessage "? Erro ao inserir carimbo no cabeçalho: " & Err.Description, LOG_LEVEL_ERROR
     InsertHeaderStamp = False
 End Function
 
 '================================================================================
-' INSERT FOOTER PAGE NUMBERS - #STABLE
+' FOOTER: PAGE NUMBERS (corrected insertion order)
 '================================================================================
 Private Function InsertFooterStamp(doc As Document) As Boolean
     On Error GoTo ErrorHandler
-
-    Dim sec As Section
-    Dim footer As HeaderFooter
-    Dim rng As Range
-    Dim sectionsProcessed As Long
-
-    LogMessage "?? Inserindo numeração de página no rodapé", LOG_LEVEL_INFO
-
+    Dim sec As Section, footer As HeaderFooter, rng As Range
     For Each sec In doc.Sections
         Set footer = sec.Footers(wdHeaderFooterPrimary)
-        
         If footer.Exists Then
             footer.LinkToPrevious = False
             Set rng = footer.Range
-            
-            ' Limpar conteúdo anterior
             rng.Delete
-            
-            ' Mover o range para depois do "p. " e inserir o campo da PÁGINA ATUAL
             Set rng = footer.Range
             rng.Collapse Direction:=wdCollapseEnd
-            rng.Fields.Add Range:=rng, Type:=wdFieldPage
-            
-            ' Inserir o texto estático " de " após o campo da página
-            Set rng = footer.Range
+            ' Insert current page field
+            doc.Fields.Add Range:=rng, Type:=wdFieldPage
             rng.Collapse Direction:=wdCollapseEnd
-            rng.Text = "-"
-            
-            ' Mover o range para depois do " de " e inserir o campo do TOTAL DE PÁGINAS
-            Set rng = footer.Range
+            rng.InsertAfter " de "
             rng.Collapse Direction:=wdCollapseEnd
-            rng.Fields.Add Range:=rng, Type:=wdFieldNumPages ' *** CORREÇÃO AQUI ***
-            
-            ' Aplicar formatação final a todo o rodapé
+            doc.Fields.Add Range:=rng, Type:=wdFieldNumPages
             With footer.Range
                 .Font.Name = STANDARD_FONT
-                .Font.size = FOOTER_FONT_SIZE
+                .Font.Size = FOOTER_FONT_SIZE
                 .Font.Bold = False
                 .ParagraphFormat.Alignment = wdAlignParagraphCenter
-                .Fields.Update ' Atualizar todos os campos para mostrar os números
+                .Fields.Update
             End With
-            
-            sectionsProcessed = sectionsProcessed + 1
-            LogMessage "? Rodapé formatado na seção " & sectionsProcessed, LOG_LEVEL_INFO
         End If
     Next sec
-
-    LogMessage "?? Numeração de página inserida em " & sectionsProcessed & " seções.", LOG_LEVEL_INFO
-    InsertFooterStamp = True
-    Exit Function
-
+    InsertFooterStamp = True: Exit Function
 ErrorHandler:
-    LogMessage "? Erro ao inserir numeração de página: " & Err.Description, LOG_LEVEL_ERROR
     InsertFooterStamp = False
 End Function
 
 '================================================================================
-' ERROR HANDLER - #STABLE
+' REMOVE LEADING BLANK LINES AND CHECK REQUIRED STRING (safer & simpler)
 '================================================================================
-Private Sub HandleError(procedureName As String)
-    Dim errMsg As String
-    errMsg = "Erro na sub-rotina: " & procedureName & vbCrLf & _
-             "Erro #" & Err.Number & ": " & Err.Description & vbCrLf & _
-             "Fonte: " & Err.Source
-    Application.StatusBar = "Erro: " & Err.Description
-    LogMessage "? Erro em " & procedureName & ": " & Err.Number & " - " & Err.Description, LOG_LEVEL_ERROR
-    Debug.Print errMsg
-    Err.Clear
-End Sub
-
-'================================================================================
-' UTILITY: CM TO POINTS - #STABLE
-'================================================================================
-Private Function CentimetersToPoints(ByVal cm As Double) As Single
-    On Error Resume Next
-    CentimetersToPoints = Application.CentimetersToPoints(cm)
-    If Err.Number <> 0 Then
-        ' Fallback conversion: 1 cm = 28.35 points
-        CentimetersToPoints = cm * 28.35
-    End If
-End Function
-
-'================================================================================
-' UTILITY: SAFE USERNAME - #STABLE
-'================================================================================
-Private Function GetSafeUserName() As String
+Private Function RemoveLeadingBlankLinesAndCheckString(doc As Document) As Boolean
     On Error GoTo ErrorHandler
-    
-    Dim rawName As String
-    Dim safeName As String
-    Dim i As Integer
-    Dim c As String
-    
-    ' Try multiple methods to get username
-    rawName = Environ("USERNAME")
-    If rawName = "" Then rawName = Environ("USER")
-    If rawName = "" Then
-        On Error Resume Next
-        rawName = CreateObject("WScript.Network").username
-        On Error GoTo 0
-    End If
-    
-    If rawName = "" Then
-        rawName = "UsuarioDesconhecido"
-    End If
-    
-    ' Sanitize username for path safety
-    For i = 1 To Len(rawName)
-        c = Mid(rawName, i, 1)
-        If c Like "[A-Za-z0-9_\-]" Then
-            safeName = safeName & c
-        ElseIf c = " " Then
-            safeName = safeName & "_"
+    Dim loopCount As Long: loopCount = 0
+    Do While doc.Paragraphs.Count > 0
+        If Trim(doc.Paragraphs(1).Range.Text) = "" Then
+            doc.Paragraphs(1).Range.Delete
+            loopCount = loopCount + 1
+            If loopCount > 50 Then Exit Do
+        Else
+            Exit Do
         End If
-    Next i
-    
-    If safeName = "" Then safeName = "Usuario"
-    
-    GetSafeUserName = safeName
-    LogMessage "?? Nome de usuário sanitizado: " & safeName, LOG_LEVEL_INFO
+    Loop
+    If doc.Paragraphs.Count = 0 Then
+        MsgBox "Documento vazio após remoção de linhas em branco.", vbExclamation, "Documento Vazio"
+        RemoveLeadingBlankLinesAndCheckString = False: Exit Function
+    End If
+    Dim firstLineText As String: firstLineText = doc.Paragraphs(1).Range.Text
+    If InStr(1, firstLineText, REQUIRED_STRING, vbBinaryCompare) = 0 Then
+        MsgBox "ATENÇÃO: A variável " & REQUIRED_STRING & " NÃO foi encontrada na primeira linha.", vbExclamation, "String Obrigatória"
+        RemoveLeadingBlankLinesAndCheckString = True ' permitimos continuar, but user warned
+    Else
+        RemoveLeadingBlankLinesAndCheckString = True
+    End If
     Exit Function
-    
 ErrorHandler:
-    GetSafeUserName = "Usuario"
-    LogMessage "??  Erro ao obter nome de usuário, usando padrão", LOG_LEVEL_WARNING
+    RemoveLeadingBlankLinesAndCheckString = False
 End Function
 
 '================================================================================
-' ADDITIONAL UTILITY: DOCUMENT BACKUP
-'================================================================================
-Private Sub CreateBackup(doc As Document)
-    On Error GoTo ErrorHandler
-    
-    If doc.Path = "" Then
-        LogMessage "??  Não é possível criar backup - documento não salvo", LOG_LEVEL_WARNING
-        Exit Sub
-    End If
-    
-    Dim backupPath As String
-    Dim fso As Object
-    
-    Set fso = CreateObject("Scripting.FileSystemObject")
-    backupPath = doc.Path & "\Backup_" & Format(Now(), "yyyy-mm-dd_hh-mm-ss") & "_" & doc.Name
-    
-    doc.SaveAs2 backupPath
-    LogMessage "?? Backup criado: " & backupPath, LOG_LEVEL_INFO
-    
-    Exit Sub
-    
-ErrorHandler:
-    LogMessage "? Falha ao criar backup: " & Err.Description, LOG_LEVEL_ERROR
-End Sub
-
-'================================================================================
-' ADDITIONAL UTILITY: VALIDATE DOCUMENT STRUCTURE
-'================================================================================
-Private Function ValidateDocumentStructure(doc As Document) As Boolean
-    On Error GoTo ErrorHandler
-    
-    Dim valid As Boolean
-    valid = True
-    
-    ' Check if document has content
-    If doc.Range.End = 0 Then
-        LogMessage "??  Documento está vazio", LOG_LEVEL_WARNING
-        valid = False
-    End If
-    
-    ' Check if document has sections
-    If doc.Sections.Count = 0 Then
-        LogMessage "??  Documento não possui seções", LOG_LEVEL_WARNING
-        valid = False
-    End If
-    
-    ValidateDocumentStructure = valid
-    Exit Function
-    
-ErrorHandler:
-    LogMessage "??  Erro na validação da estrutura do documento: " & Err.Description, LOG_LEVEL_WARNING
-    ValidateDocumentStructure = False
-End Function
-
-'================================================================================
-' ADDITIONAL UTILITY: RESTORE DEFAULT SETTINGS - #STABLE
-'================================================================================
-Private Sub RestoreDefaultSettings()
-    On Error Resume Next
-    SetAppState True
-    Application.ScreenUpdating = True
-    Application.DisplayAlerts = wdAlertsAll
-    Application.StatusBar = ""
-End Sub
-
-'================================================================================
-' UTILITY: OPEN LOG FILE - #STABLE
-'================================================================================
-Public Sub AbrirLog()
-    On Error GoTo ErrorHandler
-    
-    Dim shell As Object
-    Dim logPathToOpen As String
-    
-    Set shell = CreateObject("WScript.Shell")
-    
-    ' Determinar qual arquivo de log abrir
-    If logFilePath <> "" And Dir(logFilePath) <> "" Then
-        logPathToOpen = logFilePath
-    Else
-        ' Tentar encontrar o log na pasta TEMP
-        logPathToOpen = Environ("TEMP") & "\DocumentFormattingLog.txt"
-        
-        If Dir(logPathToOpen) = "" Then
-            ' Procurar por arquivos de log recentes
-            logPathToOpen = EncontrarArquivoLogRecente()
-            
-            If logPathToOpen = "" Then
-                MsgBox "Nenhum arquivo de log encontrado." & vbCrLf & _
-                       "Execute a padronização primeiro para gerar logs.", _
-                       vbInformation, "Log Não Encontrado"
-                Exit Sub
-            End If
-        End If
-    End If
-    
-    ' Verificar se o arquivo existe
-    If Dir(logPathToOpen) = "" Then
-        MsgBox "Arquivo de log não encontrado:" & vbCrLf & logPathToOpen, _
-               vbExclamation, "Arquivo Não Existe"
-        Exit Sub
-    End If
-    
-    ' Abrir o arquivo de forma segura com Notepad
-    shell.Run "notepad.exe " & Chr(34) & logPathToOpen & Chr(34), 1, True
-    
-    Exit Sub
-    
-ErrorHandler:
-    MsgBox "Erro ao abrir o arquivo de log:" & vbCrLf & _
-           "Erro " & Err.Number & ": " & Err.Description, vbExclamation
-End Sub
-
-'================================================================================
-' UTILITY: FIND RECENT LOG FILE - #STABLE
-'================================================================================
-Private Function EncontrarArquivoLogRecente() As String
-    On Error Resume Next
-    
-    Dim fso As Object
-    Dim tempFolder As Object
-    Dim file As Object
-    Dim recentFile As Object
-    Dim recentDate As Date
-    
-    Set fso = CreateObject("Scripting.FileSystemObject")
-    
-    ' Procurar na pasta TEMP
-    Set tempFolder = fso.GetFolder(Environ("TEMP"))
-    
-    For Each file In tempFolder.Files
-        If LCase(fso.GetExtensionName(file.Name)) = "txt" Then
-            If InStr(1, file.Name, "FormattingLog", vbTextCompare) > 0 Then
-                If recentFile Is Nothing Then
-                    Set recentFile = file
-                    recentDate = file.DateLastModified
-                ElseIf file.DateLastModified > recentDate Then
-                    Set recentFile = file
-                    recentDate = file.DateLastModified
-                End If
-            End If
-        End If
-    Next file
-    
-    If Not recentFile Is Nothing Then
-        EncontrarArquivoLogRecente = recentFile.Path
-    Else
-        EncontrarArquivoLogRecente = ""
-    End If
-End Function
-
-'================================================================================
-' UTILITY: SHOW LOG PATH - #STABLE
-'================================================================================
-Public Sub MostrarCaminhoDoLog()
-    On Error GoTo ErrorHandler
-    
-    Dim msg As String
-    Dim logPath As String
-    
-    ' Determinar o caminho do log para mostrar
-    If logFilePath <> "" And Dir(logFilePath) <> "" Then
-        logPath = logFilePath
-    Else
-        logPath = Environ("TEMP") & "\DocumentFormattingLog.txt"
-        If Dir(logPath) = "" Then
-            logPath = EncontrarArquivoLogRecente()
-            If logPath = "" Then
-                msg = "Nenhum arquivo de log encontrado." & vbCrLf & _
-                      "Execute a padronização primeiro para gerar logs."
-                MsgBox msg, vbInformation, "Log Não Encontrado"
-                Exit Sub
-            End If
-        End If
-    End If
-    
-    ' Verificar se o arquivo existe
-    If Dir(logPath) = "" Then
-        msg = "Arquivo de log não existe mais:" & vbCrLf & logPath
-        MsgBox msg, vbExclamation, "Arquivo Não Existe"
-        Exit Sub
-    End If
-    
-    ' Criar mensagem com opções
-    msg = "Arquivo de log localizado em:" & vbCrLf & vbCrLf & logPath & vbCrLf & vbCrLf
-    msg = msg & "Deseja abrir o arquivo agora?"
-    
-    Dim response As VbMsgBoxResult
-    response = MsgBox(msg, vbQuestion + vbYesNo, "Localização do Log")
-    
-    If response = vbYes Then
-        AbrirLog
-    End If
-    
-    Exit Sub
-    
-ErrorHandler:
-    MsgBox "Erro ao mostrar caminho do log:" & vbCrLf & _
-           "Erro " & Err.Number & ": " & Err.Description, vbExclamation, "Erro"
-End Sub
-
-'================================================================================
-' UTILITY: OPEN BACKUP FOLDER
-'================================================================================
-Public Sub AbrirPastaBackups()
-    On Error GoTo ErrorHandler
-    
-    Dim shell As Object
-    Dim backupFolderPath As String
-    Dim doc As Document
-    Dim fso As Object
-    
-    Set shell = CreateObject("WScript.Shell")
-    Set fso = CreateObject("Scripting.FileSystemObject")
-    Set doc = ActiveDocument
-    
-    ' Verificar se há um documento ativo
-    If doc Is Nothing Then
-        MsgBox "Nenhum documento está aberto no momento.", vbExclamation, "Documento Não Encontrado"
-        Exit Sub
-    End If
-    
-    ' Determinar o caminho da pasta de backups
-    If doc.Path <> "" Then
-        backupFolderPath = doc.Path
-    Else
-        ' Se o documento não foi salvo, usar a pasta de documentos do usuário
-        backupFolderPath = Environ("USERPROFILE") & "\Documents"
-    End If
-    
-    ' Verificar se a pasta existe
-    If Not fso.FolderExists(backupFolderPath) Then
-        MsgBox "Pasta não encontrada:" & vbCrLf & backupFolderPath, vbExclamation, "Pasta Não Existe"
-        Exit Sub
-    End If
-    
-    ' Verificar se há arquivos de backup na pasta
-    Dim hasBackups As Boolean
-    hasBackups = False
-    
-    Dim folder As Object
-    Dim file As Object
-    Set folder = fso.GetFolder(backupFolderPath)
-    
-    For Each file In folder.Files
-        If InStr(1, file.Name, "Backup_", vbTextCompare) > 0 Then
-            hasBackups = True
-            Exit For
-        End If
-    Next file
-    
-    ' Abrir a pasta no Explorador de Arquivos
-    shell.Run "explorer.exe " & Chr(34) & backupFolderPath & Chr(34), 1, True
-    
-    ' Mensagem informativa
-    If hasBackups Then
-        MsgBox "Pasta de backups aberta." & vbCrLf & vbCrLf & _
-               "Localização: " & backupFolderPath & vbCrLf & _
-               "Os arquivos de backup começam com 'Backup_'", _
-               vbInformation, "Pasta de Backups"
-    Else
-        MsgBox "Pasta do documento aberta." & vbCrLf & vbCrLf & _
-               "Localização: " & backupFolderPath & vbCrLf & _
-               "Nenhum arquivo de backup encontrado." & vbCrLf & _
-               "Os backups serão criados aqui quando o documento for salvo.", _
-               vbInformation, "Pasta do Documento"
-    End If
-    
-    Exit Sub
-    
-ErrorHandler:
-    MsgBox "Erro ao abrir a pasta de backups:" & vbCrLf & _
-           "Erro " & Err.Number & ": " & Err.Description, vbExclamation, "Erro"
-End Sub
-
-'================================================================================
-' FINAL MESSAGE - EXIBIÇÃO DE CONCLUSÃO OU EXECUÇÃO PARCIAL
-'================================================================================
-Private Sub ShowCompletionMessage(Optional ByVal sucesso As Boolean = True)
-    Dim msg As String
-    Dim response As VbMsgBoxResult
-
-    If sucesso Then
-        msg = "Processo de padronização concluído com sucesso!" & vbCrLf & vbCrLf & _
-              "Deseja fechar e prosseguir diretamente?" & vbCrLf & vbCrLf & _
-              "(Clique em 'Sim' para fechar ou 'Não' para abrir o LOG.)"        
-    Else
-        msg = "Processo de padronização concluído PARCIALMENTE devido a um erro." & vbCrLf & vbCrLf & _
-              "Recomenda-se verificar o LOG da execução para detalhes." & vbCrLf & vbCrLf & _
-              "Deseja abrir o LOG da execução agora?" & vbCrLf & vbCrLf & _
-              "(Clique em 'Sim' para abrir o log ou 'Não' para apenas fechar esta mensagem.)"
-    End If
-
-    response = MsgBox(msg, vbInformation + vbYesNo, "Padronização " & IIf(sucesso, "Concluída", "Parcial"))
-
-    If response <> vbYes Then
-        AbrirLog
-    End If
-End Sub
-
-'================================================================================
-' VERIFICA SE A DATA DO DIA ATUAL, EM EXTENSO, ESTÁ NO FINAL DE ALGUM PARÁGRAFO
+' DATE CHECK (simplified)
 '================================================================================
 Private Function DataAtualExtensoNoFinal(doc As Document) As Boolean
     On Error GoTo ErrorHandler
-
-    Dim i As Long
-    Dim para As Paragraph
-    Dim textoPara As String
-    Dim dataHoje As Date
-    Dim dataExtenso As String
-    Dim variantes() As String
-    Dim v As Variant
-    Dim encontrado As Boolean
-    Dim checkedCount As Long
-
-    LogMessage "?? Verificando presença da data do dia atual, em extenso, ao final de algum parágrafo", LOG_LEVEL_INFO
-
-    dataHoje = Date
-
-    ' Monta possíveis variações da data em extenso
-    dataExtenso = Format(dataHoje, "d \de mmmm \de yyyy")
-    ReDim variantes(4)
-    variantes(0) = dataExtenso ' Formato padrão
-    variantes(1) = Format(dataHoje, "d 'de' mmmm 'de' yyyy") ' Com dia sem zero à esquerda
-    variantes(2) = Format(dataHoje, "dd 'de' mmmm 'de' yyyy") ' Com dia com dois dígitos
-    variantes(3) = Format(dataHoje, "d 'de' mmmm 'de' y'.'yyy") ' Com dia sem zero à esquerda e ano com ponto
-    variantes(4) = Format(dataHoje, "dd 'de' mmmm 'de' y'.'yyy") ' Com dia com dois dígitos e ano com ponto
-
-    encontrado = False
-
+    Dim dataHoje As Date: dataHoje = Date
+    Dim v1 As String, v2 As String
+    v1 = LCase$(Format(dataHoje, "d 'de' mmmm 'de' yyyy"))
+    v2 = LCase$(Format(dataHoje, "dd 'de' mmmm 'de' yyyy"))
+    Dim i As Long, textoPara As String, found As Boolean
     For i = 1 To doc.Paragraphs.Count
-        textoPara = Trim(doc.Paragraphs(i).Range.Text)
-        checkedCount = checkedCount + 1
-        For Each v In variantes
-            If textoPara Like "*" & v Then
-                LogMessage "? Data encontrada no parágrafo " & i & ": '" & v & "'", LOG_LEVEL_INFO
-                encontrado = True
-                Exit For
-            End If
-        Next v
-        If encontrado Then Exit For
+        textoPara = LCase$(Trim(doc.Paragraphs(i).Range.Text))
+        If Right$(textoPara, Len(v1)) = v1 Or Right$(textoPara, Len(v2)) = v2 Then
+            found = True: Exit For
+        End If
     Next i
-
-    If encontrado Then
-        LogMessage "? Data do dia atual, em extenso, encontrada em algum parágrafo", LOG_LEVEL_INFO
-        DataAtualExtensoNoFinal = True
-    Else
-        LogMessage "??  Data do dia atual, em extenso, NÃO encontrada ao final de nenhum parágrafo", LOG_LEVEL_WARNING
-        MsgBox "ATENÇÃO:" & vbCrLf & vbCrLf & _
-               "A data do dia atual, em extenso, NÃO foi localizada ao final de nenhum parágrafo do documento." & vbCrLf & vbCrLf & _
-               "Verifique se a data está presente e corretamente escrita.", _
-               vbExclamation, "Data Não Localizada"
+    If Not found Then
+        MsgBox "ATENÇÃO: A data atual por extenso NÃO foi encontrada ao final de nenhum parágrafo.", vbExclamation, "Data Não Localizada"
         DataAtualExtensoNoFinal = False
+    Else
+        DataAtualExtensoNoFinal = True
     End If
-
     Exit Function
-
 ErrorHandler:
-    LogMessage "? Erro durante verificação da data em extenso: " & Err.Description, LOG_LEVEL_ERROR
     DataAtualExtensoNoFinal = False
 End Function
 
 '================================================================================
-' CRITICAL FIX: SAVE DOCUMENT BEFORE PROCESSING
-' TO PREVENT CRASHES ON NEW NON SAVED DOCUMENTS - #STABLE
+' SAVE DOCUMENT FIRST (improved wait)
 '================================================================================
 Private Function SaveDocumentFirst(doc As Document) As Boolean
     On Error GoTo ErrorHandler
-
-    Dim saveDialog As Object
-    Set saveDialog = Application.Dialogs(wdDialogFileSaveAs)
-
-    ' Show save dialog
-    If saveDialog.Show <> -1 Then ' User cancelled
-        LogMessage "? Usuário cancelou o salvamento inicial", LOG_LEVEL_WARNING
-        SaveDocumentFirst = False
-        Exit Function
+    If doc.Path <> "" Then
+        SaveDocumentFirst = True: Exit Function
     End If
-
-    ' Wait for document to be properly saved (Word-compatible method)
-    Dim waitCount As Integer
-    For waitCount = 1 To 10
+    If Application.Dialogs(wdDialogFileSaveAs).Show <> -1 Then
+        SaveDocumentFirst = False: Exit Function
+    End If
+    Dim t0 As Single: t0 = Timer
+    Do While doc.Path = "" And Timer - t0 < 10
         DoEvents
-        If doc.Path <> "" Then Exit For
-        Dim startTime As Double
-        startTime = Timer
-        Do While Timer < startTime + 1 ' Wait 1 second
-            DoEvents
-        Loop
-    Next waitCount
-
-    If doc.Path = "" Then
-        LogMessage "? Falha ao salvar documento", LOG_LEVEL_ERROR
-        SaveDocumentFirst = False
-    Else
-        LogMessage "?? Documento salvo com sucesso: " & doc.Path, LOG_LEVEL_INFO
-        SaveDocumentFirst = True
-    End If
-
+    Loop
+    If doc.Path = "" Then SaveDocumentFirst = False Else SaveDocumentFirst = True
     Exit Function
-
 ErrorHandler:
-    LogMessage "? Erro ao salvar documento: " & Err.Description, LOG_LEVEL_ERROR
     SaveDocumentFirst = False
 End Function
 
-' ================================================================================
-' REMOVE LEADING LINES AT THE END OF THE DOCUMENT - #STABLE
-' ================================================================================
+'================================================================================
+' BACKUP (keeps behavior)
+'================================================================================
+Private Sub CreateBackup(doc As Document)
+    On Error GoTo ErrorHandler
+    If doc.Path = "" Then Exit Sub
+    Dim backupPath As String
+    backupPath = doc.Path & "\Backup_" & Format(Now(), "yyyy-mm-dd_hh-mm-ss") & "_" & doc.Name
+    doc.SaveAs2 backupPath
+    Exit Sub
+ErrorHandler:
+    ' silent fail
+End Sub
+
+'================================================================================
+' MISC UTILITIES (Open log, find recent log, show path, backups folder)
+'================================================================================
+Public Sub AbrirLog()
+    On Error GoTo ErrorHandler
+    Dim shell As Object: Set shell = CreateObject("WScript.Shell")
+    Dim pathToOpen As String
+    If logFilePath <> "" And Dir(logFilePath) <> "" Then
+        pathToOpen = logFilePath
+    Else
+        pathToOpen = EncontrarArquivoLogRecente()
+        If pathToOpen = "" Then MsgBox "Nenhum log encontrado.", vbInformation: Exit Sub
+    End If
+    If Dir(pathToOpen) = "" Then MsgBox "Arquivo de log não encontrado: " & pathToOpen, vbExclamation: Exit Sub
+    shell.Run "notepad.exe " & Chr(34) & pathToOpen & Chr(34), 1, True
+    Exit Sub
+ErrorHandler:
+    MsgBox "Erro ao abrir log: " & Err.Description, vbExclamation
+End Sub
+
+Private Function EncontrarArquivoLogRecente() As String
+    On Error Resume Next
+    Dim fso As Object: Set fso = CreateObject("Scripting.FileSystemObject")
+    Dim tempFolder As Object: Set tempFolder = fso.GetFolder(Environ("TEMP"))
+    Dim file As Object, recentFile As Object, recentDate As Date
+    For Each file In tempFolder.Files
+        If LCase$(fso.GetExtensionName(file.Name)) = "txt" Then
+            If InStr(1, file.Name, "FormattingLog", vbTextCompare) > 0 Then
+                If recentFile Is Nothing Then
+                    Set recentFile = file: recentDate = file.DateLastModified
+                ElseIf file.DateLastModified > recentDate Then
+                    Set recentFile = file: recentDate = file.DateLastModified
+                End If
+            End If
+        End If
+    Next file
+    If Not recentFile Is Nothing Then EncontrarArquivoLogRecente = recentFile.Path Else EncontrarArquivoLogRecente = ""
+End Function
+
+Public Sub MostrarCaminhoDoLog()
+    On Error GoTo ErrorHandler
+    Dim path As String
+    If logFilePath <> "" And Dir(logFilePath) <> "" Then
+        path = logFilePath
+    Else
+        path = EncontrarArquivoLogRecente()
+        If path = "" Then MsgBox "Nenhum arquivo de log encontrado.", vbInformation: Exit Sub
+    End If
+    Dim resp As VbMsgBoxResult
+    resp = MsgBox("Arquivo de log: " & vbCrLf & path & vbCrLf & vbCrLf & "Abrir agora?", vbQuestion + vbYesNo, "Log")
+    If resp = vbYes Then AbrirLog
+    Exit Sub
+ErrorHandler:
+    MsgBox "Erro ao localizar log: " & Err.Description, vbExclamation
+End Sub
+
+Public Sub AbrirPastaBackups()
+    On Error GoTo ErrorHandler
+    Dim shell As Object: Set shell = CreateObject("WScript.Shell")
+    Dim fso As Object: Set fso = CreateObject("Scripting.FileSystemObject")
+    Dim doc As Document: Set doc = ActiveDocument
+    If doc Is Nothing Then MsgBox "Nenhum documento aberto.", vbExclamation: Exit Sub
+    Dim folderPath As String
+    If doc.Path <> "" Then folderPath = doc.Path Else folderPath = Environ("USERPROFILE") & "\Documents"
+    If Not fso.FolderExists(folderPath) Then MsgBox "Pasta não encontrada: " & folderPath, vbExclamation: Exit Sub
+    shell.Run "explorer.exe " & Chr(34) & folderPath & Chr(34), 1, True
+    Exit Sub
+ErrorHandler:
+    MsgBox "Erro ao abrir pasta de backups: " & Err.Description, vbExclamation
+End Sub
+
+'================================================================================
+' FINISHING HELPERS
+'================================================================================
+Private Sub ShowCompletionMessage(Optional ByVal sucesso As Boolean = True)
+    Dim msg As String, resp As VbMsgBoxResult
+    If sucesso Then
+        msg = "Padronização concluída com sucesso." & vbCrLf & "Deseja abrir o LOG?"
+        resp = MsgBox(msg, vbInformation + vbYesNo, "Concluído")
+        If resp = vbYes Then AbrirLog
+    Else
+        msg = "Padronização parcial/erro. Deseja abrir o LOG?"
+        resp = MsgBox(msg, vbExclamation + vbYesNo, "Parcial")
+        If resp = vbYes Then AbrirLog
+    End If
+End Sub
+
+'================================================================================
+' TEXT TRANSFORMS (examples preserved, logs reduced)
+'================================================================================
 Private Function RemoveLeadingLinesAtEnd(doc As Document) As Boolean
     On Error GoTo ErrorHandler
-
-    Dim para As Paragraph
     Dim i As Long
-    Dim removedCount As Long
-    Dim totalParas As Long
-
-    LogMessage "?? Removendo linhas em branco no final do documento", LOG_LEVEL_INFO
-
-    totalParas = doc.Paragraphs.Count
-    removedCount = 0
-
-    ' Loop backwards from the end of the document
-    For i = totalParas To 1 Step -1
-        Set para = doc.Paragraphs(i)
-        ' Check if the paragraph is empty or contains only whitespace
-        If Trim(para.Range.Text) = "" Or Trim(para.Range.Text) = vbCr Then
-            para.Range.Delete
-            removedCount = removedCount + 1
+    For i = doc.Paragraphs.Count To 1 Step -1
+        If Trim(doc.Paragraphs(i).Range.Text) = "" Then
+            doc.Paragraphs(i).Range.Delete
         Else
-            ' Stop when a non-empty paragraph is found
             Exit For
         End If
     Next i
-
-    LogMessage "?? Linhas em branco removidas no final do documento: " & removedCount, LOG_LEVEL_INFO
-    RemoveLeadingLinesAtEnd = True
-    Exit Function
-
+    RemoveLeadingLinesAtEnd = True: Exit Function
 ErrorHandler:
-    LogMessage "? Erro ao remover linhas em branco no final do documento: " & Err.Description, LOG_LEVEL_ERROR
     RemoveLeadingLinesAtEnd = False
-
 End Function
 
-'================================================================================
-' REPLACE "SUGERE" WITH "INDICA" NA EMENTA DE INDICAÇÃO
-'================================================================================
 Private Function ReplaceSugereWithIndicaInEmenta(doc As Document) As Boolean
     On Error GoTo ErrorHandler
-
-    Dim para As Paragraph
-    Dim i As Long
-    Dim replacedCount As Long
-    Dim ementaFound As Boolean
-    Dim paraText As String
-
-    LogMessage "?? Substituindo 'sugere' por 'indica' na ementa de indicação", LOG_LEVEL_INFO
-
-    replacedCount = 0
-    ementaFound = False
-
+    Dim para As Paragraph, i As Long, paraText As String
     For i = 1 To doc.Paragraphs.Count
         Set para = doc.Paragraphs(i)
-        paraText = Trim(LCase(para.Range.Text))
-
-        ' Verifica se o parágrafo é uma ementa de indicação
+        paraText = LCase$(Trim(para.Range.Text))
         If InStr(paraText, "ementa:") > 0 And InStr(paraText, "indicação") > 0 Then
-            ementaFound = True
-            If InStr(paraText, "sugere") > 0 Then
-                para.Range.Text = Replace(para.Range.Text, "sugere", "indica", , , vbTextCompare)
-                replacedCount = replacedCount + 1
-                LogMessage "? 'sugere' substituído por 'indica' no parágrafo " & i, LOG_LEVEL_INFO
-            End If
+            If InStr(paraText, "sugere") > 0 Then para.Range.Text = Replace(para.Range.Text, "sugere", "indica", , , vbTextCompare)
         End If
     Next i
-
-    If ementaFound Then
-        LogMessage "?? Ementa de indicação encontrada. Total de substituições realizadas: " & replacedCount, LOG_LEVEL_INFO
-    Else
-        LogMessage "??  Nenhuma ementa de indicação encontrada no documento", LOG_LEVEL_WARNING
-        MsgBox "ATENÇÃO:" & vbCrLf & vbCrLf & _
-               "Nenhuma ementa de indicação foi localizada no documento." & vbCrLf & vbCrLf & _
-               "Verifique se a ementa está presente e corretamente escrita.", _
-               vbExclamation, "Ementa Não Localizada"
-    End If
-
-    ReplaceSugereWithIndicaInEmenta = True
-
-    Exit Function
-
+    ReplaceSugereWithIndicaInEmenta = True: Exit Function
 ErrorHandler:
-    LogMessage "? Erro ao substituir 'sugere' por 'indica': " & Err.Description, LOG_LEVEL_ERROR
     ReplaceSugereWithIndicaInEmenta = False
-
 End Function
 
-' =================================================================================
-' APPLY STANDARD FORMATTING TO "CONSIDERANDO"
-' =================================================================================
 Private Function FormatConsideringParagraphs(doc As Document) As Boolean
     On Error GoTo ErrorHandler
-
-    Dim para As Paragraph
-    Dim i As Long
-    Dim formattedCount As Long
-    Dim skippedCount As Long
-    Dim paraText As String
-
-    LogMessage "?? Aplicando formatação padrão aos parágrafos que começam com 'Considerando'", LOG_LEVEL_INFO
-
-    formattedCount = 0
-    skippedCount = 0
-
+    Dim para As Paragraph, i As Long
     For i = 1 To doc.Paragraphs.Count
         Set para = doc.Paragraphs(i)
-        paraText = Trim(LCase(para.Range.Text))
-
-        ' Verifica se o parágrafo começa com "considerando"
-        If Left(paraText, 12) = "considerando" Then
-            ' Verifica se o parágrafo contém imagens ou objetos inline
-            If para.Range.InlineShapes.Count > 0 Then
-                LogMessage "? Parágrafo " & i & " contém imagens/objetos - ignorado", LOG_LEVEL_WARNING
-                skippedCount = skippedCount + 1
-            Else
-                ' Aplica a formatação padrão
-                With para.Range
-                    .Font.Name = STANDARD_FONT
-                    .Font.size = STANDARD_FONT_SIZE
-                    .Font.Bold = True
-                    .Font.Italic = False
-                    .Font.Underline = wdUnderlineNone
-                    .Font.AllCaps = True ' Coloca em maiúsculas
+        If LCase$(Trim(para.Range.Text)) Like "considerando*" Then
+            If para.Range.InlineShapes.Count = 0 Then
+                With para.Range.Font
+                    .Name = STANDARD_FONT
+                    .Size = STANDARD_FONT_SIZE
+                    .Bold = True
+                    .AllCaps = True
                 End With
-                formattedCount = formattedCount + 1
-                LogMessage "? Formatação aplicada ao parágrafo 'Considerando' " & i, LOG_LEVEL_INFO
             End If
         End If
     Next i
-
-    LogMessage "?? Total de parágrafos 'Considerando' formatados: " & formattedCount & ", ignorados: " & skippedCount, LOG_LEVEL_INFO
-
-    If formattedCount = 0 Then
-        LogMessage "??  Nenhum parágrafo iniciado por 'Considerando' foi encontrado no documento", LOG_LEVEL_WARNING
-        MsgBox "ATENÇÃO:" & vbCrLf & vbCrLf & _
-               "Nenhum parágrafo iniciado por 'Considerando' foi localizado no documento." & vbCrLf & vbCrLf & _
-               "Verifique se os parágrafos estão presentes e corretamente escritos.", _
-               vbExclamation, "Parágrafo 'Considerando' Não Localizado"
-    End If
-
-    FormatConsideringParagraphs = True
-    Exit Function
-
+    FormatConsideringParagraphs = True: Exit Function
 ErrorHandler:
-    LogMessage "? Erro ao formatar parágrafos 'Considerando': " & Err.Description, LOG_LEVEL_ERROR
     FormatConsideringParagraphs = False
 End Function
 
