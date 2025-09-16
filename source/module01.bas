@@ -384,14 +384,25 @@ End Function
 
 Private Function GetSafeUserName() As String
     On Error GoTo ErrorHandler
-    Dim rawName As String, safeName As String, i As Integer, c As String
+    Dim rawName As String, safeName As String
     rawName = Environ("USERNAME")
     If rawName = "" Then rawName = Environ("USER")
-    If rawName = "" Then rawName = CreateObject("WScript.Network").username
+    If rawName = "" Then
+        On Error Resume Next
+        rawName = CreateObject("WScript.Network").UserName
+        On Error GoTo ErrorHandler
+    End If
     If rawName = "" Then rawName = "UsuarioDesconhecido"
+    Dim i As Long, c As String, code As Long
     For i = 1 To Len(rawName)
         c = Mid$(rawName, i, 1)
-        If c Like "[A-Za-z0-9_\-]" Then safeName = safeName & c ElseIf c = " " Then safeName = safeName & "_"
+        code = Asc(c)
+        ' Digits (48-57), uppercase (65-90), lowercase (97-122), underscore or hyphen allowed.
+        If (code >= 48 And code <= 57) Or (code >= 65 And code <= 90) Or (code >= 97 And code <= 122) Or c = "_" Or c = "-" Then
+            safeName = safeName & c
+        ElseIf c = " " Then
+            safeName = safeName & "_"
+        End If
     Next i
     If safeName = "" Then safeName = "Usuario"
     GetSafeUserName = safeName
@@ -930,4 +941,26 @@ Private Function FormatConsideringParagraphs(doc As Document) As Boolean
 ErrorHandler:
     FormatConsideringParagraphs = False
 End Function
+
+'================================================================================
+' APPLICATION STATE (performance helper)
+' - SetAppState False: desativa ScreenUpdating e silencia alertas, mostra status.
+' - SetAppState True: restaura estados padrão.
+'================================================================================
+Private Sub SetAppState(ByVal enable As Boolean, Optional ByVal statusMsg As String = "")
+    On Error Resume Next
+    If enable Then
+        Application.ScreenUpdating = True
+        Application.DisplayAlerts = wdAlertsAll
+        Application.StatusBar = False
+    Else
+        Application.ScreenUpdating = False
+        Application.DisplayAlerts = wdAlertsNone
+        If Len(Trim$(statusMsg)) > 0 Then
+            Application.StatusBar = statusMsg
+        Else
+            Application.StatusBar = "Processando..."
+        End If
+    End If
+End Sub
 
