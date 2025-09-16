@@ -265,9 +265,6 @@ Private Sub SafeCleanup()
     
     LogMessage "?? Iniciando processo de limpeza segura", LOG_LEVEL_INFO
     
-    ' Remover linhas em branco no final do documento - prevenção de problemas de formatação
-    RemoveLeadingLinesAtEnd ActiveDocument
-    
     ' Finalizar grupo undo
     EndUndoGroup
     
@@ -373,46 +370,71 @@ ErrorHandler:
 End Sub
 
 '================================================================================
-' LOGGING MANAGEMENT - SIMPLIFICADO
+' LOGGING MANAGEMENT - SIMPLIFICADO E OTIMIZADO
 '================================================================================
-Private Function InitializeLogging(doc As Document) As Boolean
+
+' Escreve uma linha no arquivo de log, centralizando abertura/fechamento
+Private Sub WriteLogLine(ByVal line As String)
+    If logFilePath = "" Then Exit Sub
     On Error Resume Next
-
-    If doc.Path <> "" Then
-        logFilePath = doc.Path & "\" & Replace(doc.Name, ".doc", "") & "_FormattingLog.txt"
-        logFilePath = Replace(logFilePath, ".docx", "") & "_FormattingLog.txt"
-        logFilePath = Replace(logFilePath, ".docm", "") & "_FormattingLog.txt"
-    Else
-        logFilePath = Environ("TEMP") & "\DocumentFormattingLog.txt"
-    End If
-
-    loggingEnabled = True
-    InitializeLogging = True
-End Function
-
-Private Sub LogMessage(message As String, Optional level As Long = LOG_LEVEL_INFO)
-    On Error Resume Next
-
-    If Not loggingEnabled Then Exit Sub
-
-    Dim levelText As String
-    Select Case level
-        Case LOG_LEVEL_INFO: levelText = "[INFO]"
-        Case LOG_LEVEL_WARNING: levelText = "[WARN]"
-        Case LOG_LEVEL_ERROR: levelText = "[ERRO]"
-        Case Else: levelText = "[LOG]"
-    End Select
-
-    Dim formattedMessage As String
-    formattedMessage = Format(Now, "yyyy-mm-dd HH:MM:ss") & " " & levelText & " " & message
-
-    Open logFilePath For Append As #1
-    Print #1, formattedMessage
-    Close #1
+    Dim f As Integer: f = FreeFile
+    Open logFilePath For Append As #f
+    Print #f, line
+    Close #f
 End Sub
 
-Private Sub SafeFinalizeLogging()
+' Inicializa o log
+Private Function InitializeLogging(doc As Document) As Boolean
+    On Error GoTo ErrorHandler
+
+    If doc.Path <> "" Then
+        logFilePath = doc.Path & "\" & Format(Now, "yyyy-mm-dd") & "_" & Replace(Replace(Replace(doc.Name, ".docx", ""), ".docm", ""), ".doc", "") & "_FormattingLog.txt"
+    Else
+        logFilePath = Environ("TEMP") & "\" & Format(Now, "yyyy-mm-dd") & "_DocumentFormattingLog.txt"
+    End If
+
+    Dim header As String
+    header = "LOG DE FORMATAÇÃO DE DOCUMENTO" & vbCrLf & _
+             "Sessão: " & Format(Now, "yyyy-mm-dd HH:MM:ss") & vbCrLf & _
+             "Usuário: " & Environ("USERNAME") & " | Estação: " & Environ("COMPUTERNAME") & vbCrLf & _
+             "Documento: " & doc.Name & vbCrLf & _
+             String(40, "=")
+    WriteLogLine header
+
+    loggingEnabled = True
+    LogMessage "Logging inicializado: " & logFilePath, LOG_LEVEL_INFO
+    InitializeLogging = True
+    Exit Function
+
+ErrorHandler:
     loggingEnabled = False
+    InitializeLogging = False
+End Function
+
+' Função central de log
+Private Sub LogMessage(message As String, Optional level As Long = LOG_LEVEL_INFO)
+    If Not loggingEnabled Then Exit Sub
+    On Error Resume Next
+    Dim levelText As String
+    Select Case level
+        Case LOG_LEVEL_INFO: levelText = "INFO"
+        Case LOG_LEVEL_WARNING: levelText = "AVISO"
+        Case LOG_LEVEL_ERROR: levelText = "ERRO"
+        Case Else: levelText = "LOG"
+    End Select
+    ' Só registra logs de nível WARNING ou ERROR, ou logs INFO não triviais
+    If level <> LOG_LEVEL_INFO Or InStr(1, message, "Falha", vbTextCompare) > 0 Or InStr(1, message, "Erro", vbTextCompare) > 0 Or InStr(1, message, "cancel", vbTextCompare) > 0 Or InStr(1, message, "conclu", vbTextCompare) > 0 Then
+        WriteLogLine Format(Now, "yyyy-mm-dd HH:MM:ss") & " [" & levelText & "] " & message
+    End If
+End Sub
+
+' Finaliza o log
+Private Sub SafeFinalizeLogging()
+    If loggingEnabled Then
+        WriteLogLine "FIM DA SESSÃO - " & Format(Now, "yyyy-mm-dd HH:MM:ss")
+        WriteLogLine "Status: " & IIf(formattingCancelled, "CANCELADO", "CONCLUÍDO")
+        loggingEnabled = False
+    End If
 End Sub
 
 '================================================================================
@@ -1792,83 +1814,3 @@ ErrorHandler:
     FormatConsideringParagraphs = False
 End Function
 
-'================================================================================
-' UTILITY: OPEN WEBPAGE IN DEFAULT BROWSER (GENERIC, REUSABLE)
-'================================================================================
-Private Sub OpenWebGeneric(url As String)
-    On Error GoTo ErrorHandler
-
-    Dim shell As Object
-    Dim validatedUrl As String
-
-    ' Validação básica da URL
-    validatedUrl = Trim(url)
-    If validatedUrl = "" Then
-        MsgBox "URL não informada.", vbExclamation, "Erro ao Abrir Página Web"
-        Exit Sub
-    End If
-    If Not (LCase(Left(validatedUrl, 7)) = "http://" Or LCase(Left(validatedUrl, 8)) = "https://") Then
-        MsgBox "URL inválida: " & validatedUrl, vbExclamation, "Erro ao Abrir Página Web"
-        Exit Sub
-    End If
-
-    Set shell = CreateObject("WScript.Shell")
-    shell.Run """" & validatedUrl & """", 1, False
-
-    Exit Sub
-
-ErrorHandler:
-    MsgBox "Erro ao abrir a página web:" & vbCrLf & _
-           "URL: " & url & vbCrLf & _
-           "Erro " & Err.Number & ": " & Err.Description, vbExclamation, "Erro ao Abrir Página Web"
-End Sub
-
-'================================================================================
-' UTILITY: OPEN AI WEBPAGE IN DEFAULT BROWSER
-'================================================================================
-Public Sub OpenWebAI(url As String)
-    OpenWebGeneric "https://chatgpt.com/"
-End Sub
-
-'================================================================================
-' UTILITY: OPEN REPOSITORY WEBPAGE IN DEFAULT BROWSER
-'================================================================================
-Public Sub OpenWebRepository(url As String)
-    OpenWebGeneric "https://github.com/chainsaw-fprops"
-End Sub
-
-'================================================================================
-' UTILITY: SAVE AND EXIT - SEGURO E ROBUSTO
-'================================================================================
-Public Sub SalvarESairSeguro()
-    On Error GoTo ErrorHandler
-
-    Dim doc As Document
-    Set doc = Nothing
-
-    ' Tenta obter o documento ativo
-    Set doc = ActiveDocument
-    If doc Is Nothing Then
-        MsgBox "Nenhum documento ativo encontrado para salvar e sair.", vbExclamation, "Salvar e Sair"
-        LogMessage "? Nenhum documento ativo encontrado ao tentar salvar e sair.", LOG_LEVEL_WARNING
-        Exit Sub
-    End If
-
-    ' Salvar documento
-    doc.Save
-    LogMessage "?? Documento salvo com sucesso antes de sair: " & doc.FullName, LOG_LEVEL_INFO
-
-    ' Fechar o documento
-    doc.Close SaveChanges:=wdSaveChanges
-    LogMessage "?? Documento fechado com sucesso.", LOG_LEVEL_INFO
-
-    ' Sair do Word
-    Application.Quit
-    LogMessage "?? Microsoft Word encerrado com sucesso.", LOG_LEVEL_INFO
-    Exit Sub
-
-ErrorHandler:
-    MsgBox "Erro ao salvar e sair:" & vbCrLf & _
-           "Erro " & Err.Number & ": " & Err.Description, vbExclamation, "Erro ao Salvar e Sair"
-    LogMessage "? Erro ao salvar e sair: " & Err.Description, LOG_LEVEL_ERROR
-End Sub
