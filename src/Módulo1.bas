@@ -3,13 +3,12 @@
 ' Versão: 2.0.1-stable | Data: 2025-09-11
 ' Autor: Christian Martin dos Santos | github.com/chrmsantos/std-legis-docs
 ' =============================================================================
-' Solução open source para formatação, segurança, backup, logging e interface
+' Solução open source para formatação, segurança e interface.
 ' aprimorada de documentos institucionais no Microsoft Word.
 ' Licença: Apache 2.0 modificada com cláusula 10 (restrição comercial), ver LICENSE
 ' =============================================================================
 ' Funcionalidades principais:
-' - Segurança e robustez (recuperação, tratamento de erros, backup)
-' - Logging detalhado (arquivo de log, console debug)
+' - Segurança e robustez (recuperação, tratamento de erros)
 ' - Interface aprimorada (mensagens, status dinâmico)
 ' - Padronização e formatação:
 '     • Margens automáticas (superior, inferior, esquerda, direita)
@@ -1030,29 +1029,6 @@ ErrorHandler:
 End Function
 
 '================================================================================
-' ADDITIONAL UTILITY: DOCUMENT BACKUP - #STABLE
-'================================================================================
-Private Sub CreateBackup(doc As Document)
-    On Error GoTo ErrorHandler
-    
-    If doc.Path = "" Then
-        Exit Sub
-    End If
-    
-    Dim backupPath As String
-    Dim fso As Object
-    
-    Set fso = CreateObject("Scripting.FileSystemObject")
-    backupPath = doc.Path & "\Backup_" & Format(Now(), "yyyy-mm-dd_hh-mm-ss") & "_" & doc.Name
-    
-    doc.SaveAs2 backupPath
-    
-    Exit Sub
-    
-ErrorHandler:
-End Sub
-
-'================================================================================
 ' ADDITIONAL UTILITY: VALIDATE DOCUMENT STRUCTURE - #STABLE
 '================================================================================
 Private Function ValidateDocumentStructure(doc As Document) As Boolean
@@ -1085,74 +1061,6 @@ Private Sub RestoreDefaultSettings()
     Application.ScreenUpdating = True
     Application.DisplayAlerts = wdAlertsAll
     Application.StatusBar = ""
-End Sub
-
-    
-'================================================================================
-' UTILITY: OPEN BACKUP FOLDER - #STABLE
-'================================================================================
-Public Sub AbrirPastaBackups()
-    On Error GoTo ErrorHandler
-    
-    Dim shell As Object
-    Dim backupFolderPath As String
-    Dim doc As Document
-    Dim fso As Object
-    
-    Set shell = CreateObject("WScript.Shell")
-    Set fso = CreateObject("Scripting.FileSystemObject")
-    Set doc = ActiveDocument
-    
-    If doc Is Nothing Then
-        MsgBox "Nenhum documento está aberto no momento.", vbExclamation, "Documento Não Encontrado"
-        Exit Sub
-    End If
-    
-    If doc.Path <> "" Then
-        backupFolderPath = doc.Path
-    Else
-        backupFolderPath = Environ("USERPROFILE") & "\Documents"
-    End If
-    
-    If Not fso.FolderExists(backupFolderPath) Then
-        MsgBox "Pasta não encontrada:" & vbCrLf & backupFolderPath, vbExclamation, "Pasta Não Existe"
-        Exit Sub
-    End If
-    
-    Dim hasBackups As Boolean
-    hasBackups = False
-    
-    Dim folder As Object
-    Dim file As Object
-    Set folder = fso.GetFolder(backupFolderPath)
-    
-    For Each file In folder.Files
-        If InStr(1, file.Name, "Backup_", vbTextCompare) > 0 Then
-            hasBackups = True
-            Exit For
-        End If
-    Next file
-    
-    shell.Run "explorer.exe " & Chr(34) & backupFolderPath & Chr(34), 1, True
-    
-    If hasBackups Then
-        MsgBox "Pasta de backups aberta." & vbCrLf & vbCrLf & _
-               "Localização: " & backupFolderPath & vbCrLf & _
-               "Os arquivos de backup começam com 'Backup_'", _
-               vbInformation, "Pasta de Backups"
-    Else
-        MsgBox "Pasta do documento aberta." & vbCrLf & vbCrLf & _
-               "Localização: " & backupFolderPath & vbCrLf & _
-               "Nenhum arquivo de backup encontrado." & vbCrLf & _
-               "Os backups serão criados aqui quando o documento for salvo.", _
-               vbInformation, "Pasta do Documento"
-    End If
-    
-    Exit Sub
-    
-ErrorHandler:
-    MsgBox "Erro ao abrir a pasta de backups:" & vbCrLf & _
-           "Erro " & Err.Number & ": " & Err.Description, vbExclamation, "Erro"
 End Sub
 
 
