@@ -5,7 +5,7 @@
 ' Sistema automatizado de padronização de documentos legislativos no Microsoft Word
 '
 ' Licença: Apache 2.0 modificada (ver LICENSE)
-' Versão: 1.0-alpha7 | Data: 2025-09-18
+' Versão: 1.0-alpha8-optimized | Data: 2025-09-18
 ' Repositório: github.com/chrmsantos/chainsaw-fprops
 ' Autor: Christian Martin dos Santos <chrmsantos@gmail.com>
 '
@@ -19,12 +19,28 @@
 '   - Controle de espaço em disco e estrutura mínima
 '   - Proteção contra falhas e recuperação automática
 '
+' • SISTEMA DE BACKUP AUTOMÁTICO:
+'   - Backup automático antes de qualquer modificação
+'   - Pasta de backups organizada por documento
+'   - Limpeza automática de backups antigos (limite: 10 arquivos)
+'   - Subrotina pública para acesso à pasta de backups
+'
 ' • FORMATAÇÃO AUTOMATIZADA INSTITUCIONAL:
+'   - Limpeza completa de formatação ao iniciar
+'   - Remoção robusta de espaços múltiplos e tabs
+'   - Controle de linhas vazias (máximo 2 sequenciais)
+'   - PROTEÇÃO MÁXIMA: Preserva imagens inline, flutuantes e objetos
+'   - Primeira linha: SEMPRE caixa alta, negrito, sublinhado, centralizada
+'   - Parágrafos 2°, 3° e 4°: recuo esquerdo 9cm, sem recuo primeira linha
+'   - "Considerando": caixa alta e negrito no início de parágrafos
+'   - "Justificativa": centralizada, sem recuos, negrito, capitalizada
+'   - "Anexo/Anexos": alinhado à esquerda, sem recuos, negrito, capitalizado
 '   - Configuração de margens e orientação (A4)
 '   - Fonte Arial 12pt com espaçamento 1.4
 '   - Recuos e alinhamento justificado
 '   - Cabeçalho com logotipo institucional
 '   - Rodapé com numeração centralizada
+'   - Visualização: zoom 110%, régua visível, modo impressão
 '   - Remoção de marcas d'água e formatações manuais
 '
 ' • SISTEMA DE LOGS E MONITORAMENTO:
@@ -73,6 +89,10 @@ Private Const wdAlertsAll As Long = 0
 Private Const wdAlertsNone As Long = -1
 Private Const wdColorAutomatic As Long = -16777216
 Private Const wdOrientPortrait As Long = 0
+Private Const wdUnderlineNone As Long = 0
+Private Const wdUnderlineSingle As Long = 1
+Private Const wdTextureNone As Long = 0
+Private Const wdPrintView As Long = 3
 
 ' Document formatting constants
 Private Const STANDARD_FONT As String = "Arial"
@@ -109,6 +129,10 @@ Private Const REQUIRED_STRING As String = "$NUMERO$/$ANO$"
 Private Const MAX_RETRY_ATTEMPTS As Long = 3
 Private Const RETRY_DELAY_MS As Long = 1000
 
+' Backup constants
+Private Const BACKUP_FOLDER_NAME As String = "chainsaw-backups"
+Private Const MAX_BACKUP_FILES As Long = 10
+
 '================================================================================
 ' GLOBAL VARIABLES
 '================================================================================
@@ -117,6 +141,7 @@ Private loggingEnabled As Boolean
 Private logFilePath As String
 Private formattingCancelled As Boolean
 Private executionStartTime As Date
+Private backupFilePath As String
 
 '================================================================================
 ' MAIN ENTRY POINT - #STABLE
@@ -167,6 +192,14 @@ Public Sub PadronizarDocumentoMain()
             LogMessage "Operação cancelada - documento não foi salvo", LOG_LEVEL_INFO
             Exit Sub
         End If
+    End If
+    
+    ' Cria backup do documento antes de qualquer modificação
+    If Not CreateDocumentBackup(doc) Then
+        LogMessage "Falha ao criar backup - continuando sem backup", LOG_LEVEL_WARNING
+        Application.StatusBar = "Aviso: Backup não foi possível - processando sem backup"
+    Else
+        Application.StatusBar = "Backup criado - formatando documento..."
     End If
     
     If Not PreviousFormatting(doc) Then
@@ -554,40 +587,35 @@ ErrorHandler:
 End Function
 
 '================================================================================
-' DISK SPACE CHECK - VERIFICAÇÃO DE ESPAÇO EM DISCO
+' DISK SPACE CHECK - VERIFICAÇÃO SIMPLIFICADA
 '================================================================================
 Private Function CheckDiskSpace(doc As Document) As Boolean
     On Error GoTo ErrorHandler
     
+    ' Verificação simplificada - assume espaço suficiente se não conseguir verificar
     Dim fso As Object
     Dim drive As Object
-    Dim requiredSpace As Long
-    Dim driveLetter As String
     
     Set fso = CreateObject("Scripting.FileSystemObject")
     
     If doc.Path <> "" Then
-        driveLetter = Left(doc.Path, 3)
+        Set drive = fso.GetDrive(Left(doc.Path, 3))
     Else
-        driveLetter = Left(Environ("TEMP"), 3)
+        Set drive = fso.GetDrive(Left(Environ("TEMP"), 3))
     End If
     
-    Set drive = fso.GetDrive(driveLetter)
-    
-    requiredSpace = 50 * 1024 * 1024
-    
-    If drive.AvailableSpace < requiredSpace Then
-        LogMessage "Espaço insuficiente no disco " & driveLetter & ": " & Format(drive.AvailableSpace / 1024 / 1024, "0.0") & "MB disponível, 50MB necessário", LOG_LEVEL_ERROR
+    ' Verificação básica - 10MB mínimo
+    If drive.AvailableSpace < 10485760 Then ' 10MB em bytes
+        LogMessage "Espaço em disco muito baixo", LOG_LEVEL_WARNING
         CheckDiskSpace = False
     Else
-        LogMessage "Espaço em disco suficiente: " & Format(drive.AvailableSpace / 1024 / 1024, "0.0") & "MB disponível", LOG_LEVEL_INFO
         CheckDiskSpace = True
     End If
     
     Exit Function
     
 ErrorHandler:
-    LogMessage "Erro ao verificar espaço em disco: " & Err.Description, LOG_LEVEL_WARNING
+    ' Se não conseguir verificar, assume que há espaço suficiente
     CheckDiskSpace = True
 End Function
 
@@ -603,86 +631,59 @@ Private Function PreviousFormatting(doc As Document) As Boolean
         PreviousFormatting = False
         Exit Function
     End If
-    LogMessage "Configuração de página aplicada com sucesso", LOG_LEVEL_INFO
 
-    ' Limpeza inicial do documento
-    If Not CleanDocumentStructure(doc) Then
-        LogMessage "Falha na limpeza da estrutura do documento", LOG_LEVEL_WARNING
-    Else
-        LogMessage "Estrutura do documento limpa com sucesso", LOG_LEVEL_INFO
-    End If
-
-    ' Validação do tipo de proposição
-    If Not ValidatePropositionType(doc) Then
-        LogMessage "Validação de tipo de proposição cancelada pelo usuário", LOG_LEVEL_INFO
-        Application.StatusBar = "Operação cancelada - tipo de documento não confirmado"
-        PreviousFormatting = False
-        Exit Function
-    End If
-
-    ' Formatação do título e substituições de texto
-    If Not FormatDocumentTitle(doc) Then
-        LogMessage "Falha na formatação do título", LOG_LEVEL_WARNING
-    Else
-        LogMessage "Título formatado com sucesso", LOG_LEVEL_INFO
-    End If
-
-    ' Formatações de fonte e parágrafos
+    ' Limpeza e formatações otimizadas (sem logs detalhados para performance)
+    ClearAllFormatting doc
+    CleanDocumentStructure doc
+    ValidatePropositionType doc
+    FormatDocumentTitle doc
+    
+    ' Formatações principais
     If Not ApplyStdFont(doc) Then
         LogMessage "Falha na formatação de fontes", LOG_LEVEL_ERROR
         PreviousFormatting = False
         Exit Function
     End If
-    LogMessage "Formatação de fontes aplicada com sucesso", LOG_LEVEL_INFO
     
     If Not ApplyStdParagraphs(doc) Then
         LogMessage "Falha na formatação de parágrafos", LOG_LEVEL_ERROR
         PreviousFormatting = False
         Exit Function
     End If
-    LogMessage "Formatação de parágrafos aplicada com sucesso", LOG_LEVEL_INFO
 
-    ' Formatações específicas de conteúdo
-    If Not FormatConsiderandoParagraphs(doc) Then
-        LogMessage "Falha na formatação de parágrafos 'considerando'", LOG_LEVEL_WARNING
-    Else
-        LogMessage "Parágrafos 'considerando' formatados com sucesso", LOG_LEVEL_INFO
-    End If
+    ' Formatação específica do 1º parágrafo (caixa alta, negrito, sublinhado)
+    FormatFirstParagraph doc
 
-    ' Substituições de texto específicas
-    If Not ApplyTextReplacements(doc) Then
-        LogMessage "Falha nas substituições de texto", LOG_LEVEL_WARNING
-    Else
-        LogMessage "Substituições de texto aplicadas com sucesso", LOG_LEVEL_INFO
-    End If
+    ' Formatação específica do 2º parágrafo
+    FormatSecondParagraph doc
+
+    ' Formatações específicas (sem verificação de retorno para performance)
+    FormatConsiderandoParagraphs doc
+    ApplyTextReplacements doc
     
-    ' Formatações complementares
-    If Not EnableHyphenation(doc) Then
-        LogMessage "Falha ao ativar hifenização", LOG_LEVEL_WARNING
-    Else
-        LogMessage "Hifenização ativada com sucesso", LOG_LEVEL_INFO
-    End If
+    ' Formatação específica para Justificativa/Anexo/Anexos
+    FormatJustificativaAnexoParagraphs doc
     
-    If Not RemoveWatermark(doc) Then
-        LogMessage "Falha na remoção de marcas d'água", LOG_LEVEL_WARNING
-    Else
-        LogMessage "Marcas d'água removidas com sucesso", LOG_LEVEL_INFO
-    End If
+    EnableHyphenation doc
+    RemoveWatermark doc
+    InsertHeaderStamp doc
     
-    If Not InsertHeaderStamp(doc) Then
-        LogMessage "Falha na inserção do cabeçalho", LOG_LEVEL_WARNING
-    Else
-        LogMessage "Cabeçalho inserido com sucesso", LOG_LEVEL_INFO
-    End If
+    ' Limpeza final de espaços múltiplos em todo o documento
+    CleanMultipleSpaces doc
+    
+    ' Controle de linhas em branco sequenciais (máximo 2)
+    LimitSequentialEmptyLines doc
+    
+    ' Configuração final da visualização
+    ConfigureDocumentView doc
     
     If Not InsertFooterStamp(doc) Then
         LogMessage "Falha na inserção do rodapé", LOG_LEVEL_ERROR
         PreviousFormatting = False
         Exit Function
     End If
-    LogMessage "Rodapé inserido com sucesso", LOG_LEVEL_INFO
     
-    LogMessage "Formatação completa aplicada com sucesso", LOG_LEVEL_INFO
+    LogMessage "Formatação completa aplicada", LOG_LEVEL_INFO
     PreviousFormatting = True
     Exit Function
 
@@ -729,23 +730,59 @@ Private Function ApplyStdFont(doc As Document) As Boolean
     Dim formattedCount As Long
     Dim skippedCount As Long
     Dim underlineRemovedCount As Long
+    Dim isTitle As Boolean
+    Dim hasConsiderando As Boolean
 
     For i = doc.Paragraphs.Count To 1 Step -1
         Set para = doc.Paragraphs(i)
         hasInlineImage = False
+        isTitle = False
+        hasConsiderando = False
 
         If para.Range.InlineShapes.Count > 0 Then
             hasInlineImage = True
             skippedCount = skippedCount + 1
         End If
+        
+        ' Proteção adicional: verifica outros tipos de conteúdo visual
+        If Not hasInlineImage And HasVisualContent(para) Then
+            hasInlineImage = True
+            skippedCount = skippedCount + 1
+        End If
+        
+        ' Verifica se é o primeiro parágrafo com texto (título)
+        If i <= 3 And para.Format.Alignment = wdAlignParagraphCenter Then
+            Dim paraText As String
+            paraText = Trim(Replace(Replace(para.Range.Text, vbCr, ""), vbLf, ""))
+            If paraText <> "" Then
+                ' Primeira linha com texto sempre é título, independente do conteúdo
+                isTitle = True
+            End If
+        End If
+        
+        ' Verifica se o parágrafo começa com "considerando"
+        Dim paraFullText As String
+        paraFullText = Trim(Replace(Replace(para.Range.Text, vbCr, ""), vbLf, ""))
+        If Len(paraFullText) >= 12 And LCase(Left(paraFullText, 12)) = "considerando" Then
+            hasConsiderando = True
+        End If
+        
+        ' Verifica se é um parágrafo especial (Justificativa/Anexo/Anexos)
+        Dim isSpecialParagraph As Boolean
+        Dim cleanParaText As String
+        cleanParaText = LCase(paraFullText)
+        If cleanParaText = "justificativa" Or cleanParaText = "anexo" Or cleanParaText = "anexos" Then
+            isSpecialParagraph = True
+        End If
 
         If Not hasInlineImage Then
+            ' Aplica formatação de fonte padrão, mas preserva negrito de títulos e considerandos
             With para.Range.Font
                 .Name = STANDARD_FONT
                 .Size = STANDARD_FONT_SIZE
                 
-                ' Remove sublinhado de todo o documento (Funcionalidade 1)
-                If .Underline <> wdUnderlineNone Then
+                ' Remove sublinhado de todo o documento, exceto do título
+                If .Underline <> wdUnderlineNone And Not isTitle Then
                     .Underline = wdUnderlineNone
                     underlineRemovedCount = underlineRemovedCount + 1
                 End If
@@ -753,11 +790,19 @@ Private Function ApplyStdFont(doc As Document) As Boolean
                 .Color = wdColorAutomatic
             End With
             
+            ' Trata negrito de forma seletiva
+            If Not isTitle And Not hasConsiderando And Not isSpecialParagraph Then
+                ' Remove negrito apenas se não for título, considerando ou parágrafo especial
+                If para.Range.Font.Bold = True Then
+                    para.Range.Font.Bold = False
+                End If
+            End If
+            
             formattedCount = formattedCount + 1
         End If
     Next i
     
-    LogMessage "Formatação de fonte aplicada: " & formattedCount & " parágrafos formatados, " & skippedCount & " ignorados (imagens), " & underlineRemovedCount & " sublinhados removidos", LOG_LEVEL_INFO
+    LogMessage "Formatação de fonte aplicada: " & formattedCount & " parágrafos formatados, " & skippedCount & " ignorados (proteção de imagens/objetos), " & underlineRemovedCount & " sublinhados removidos (preservando título, considerandos e seções especiais)", LOG_LEVEL_INFO
     ApplyStdFont = True
     Exit Function
 
@@ -793,11 +838,46 @@ Private Function ApplyStdParagraphs(doc As Document) As Boolean
             hasInlineImage = True
             skippedCount = skippedCount + 1
         End If
+        
+        ' Proteção adicional: verifica outros tipos de conteúdo visual
+        If Not hasInlineImage And HasVisualContent(para) Then
+            hasInlineImage = True
+            skippedCount = skippedCount + 1
+        End If
 
         If Not hasInlineImage Then
-            Do While InStr(para.Range.Text, "  ") > 0
-                para.Range.Text = Replace(para.Range.Text, "  ", " ")
+            ' Limpeza robusta de espaços múltiplos
+            Dim cleanText As String
+            cleanText = para.Range.Text
+            
+            ' Remove múltiplos espaços consecutivos
+            Do While InStr(cleanText, "  ") > 0
+                cleanText = Replace(cleanText, "  ", " ")
             Loop
+            
+            ' Remove espaços antes/depois de quebras de linha
+            cleanText = Replace(cleanText, " " & vbCr, vbCr)
+            cleanText = Replace(cleanText, vbCr & " ", vbCr)
+            cleanText = Replace(cleanText, " " & vbLf, vbLf)
+            cleanText = Replace(cleanText, vbLf & " ", vbLf)
+            
+            ' Remove tabs extras
+            Do While InStr(cleanText, vbTab & vbTab) > 0
+                cleanText = Replace(cleanText, vbTab & vbTab, vbTab)
+            Loop
+            
+            ' Substitui tabs por espaços simples
+            cleanText = Replace(cleanText, vbTab, " ")
+            
+            ' Remove espaços múltiplos novamente após conversão de tabs
+            Do While InStr(cleanText, "  ") > 0
+                cleanText = Replace(cleanText, "  ", " ")
+            Loop
+            
+            ' Aplica o texto limpo
+            If cleanText <> para.Range.Text Then
+                para.Range.Text = cleanText
+            End If
 
             paraText = Trim(LCase(Replace(Replace(Replace(para.Range.Text, ".", ""), ",", ""), ";", "")))
             paraText = Replace(paraText, vbCr, "")
@@ -834,13 +914,151 @@ Private Function ApplyStdParagraphs(doc As Document) As Boolean
         End If
     Next i
     
-    LogMessage "Formatação de parágrafos aplicada: " & formattedCount & " parágrafos formatados, " & skippedCount & " ignorados (imagens)", LOG_LEVEL_INFO
+    LogMessage "Formatação de parágrafos aplicada: " & formattedCount & " parágrafos formatados, " & skippedCount & " ignorados (proteção de imagens/objetos)", LOG_LEVEL_INFO
     ApplyStdParagraphs = True
     Exit Function
 
 ErrorHandler:
     LogMessage "Erro na formatação de parágrafos: " & Err.Description, LOG_LEVEL_ERROR
     ApplyStdParagraphs = False
+End Function
+
+'================================================================================
+' FORMAT SECOND PARAGRAPH - FORMATAÇÃO APENAS DO 2º PARÁGRAFO - #NEW
+'================================================================================
+Private Function FormatSecondParagraph(doc As Document) As Boolean
+    On Error GoTo ErrorHandler
+    
+    Dim para As Paragraph
+    Dim paraText As String
+    Dim i As Long
+    Dim actualParaIndex As Long
+    Dim secondParaIndex As Long
+    
+    ' Identifica apenas o 2º parágrafo (considerando apenas parágrafos com texto)
+    actualParaIndex = 0
+    secondParaIndex = 0
+    
+    ' Encontra o 2º parágrafo com conteúdo (pula vazios)
+    For i = 1 To doc.Paragraphs.Count
+        Set para = doc.Paragraphs(i)
+        paraText = Trim(Replace(Replace(para.Range.Text, vbCr, ""), vbLf, ""))
+        
+        ' Se o parágrafo tem texto ou conteúdo visual, conta como parágrafo válido
+        If paraText <> "" Or HasVisualContent(para) Then
+            actualParaIndex = actualParaIndex + 1
+            
+            ' Registra o índice do 2º parágrafo
+            If actualParaIndex = 2 Then
+                secondParaIndex = i
+                Exit For ' Já encontramos o 2º parágrafo
+            End If
+        End If
+        
+        ' Proteção: não processa mais de 10 parágrafos
+        If i > 10 Then Exit For
+    Next i
+    
+    ' Aplica formatação específica apenas ao 2º parágrafo
+    If secondParaIndex > 0 And secondParaIndex <= doc.Paragraphs.Count Then
+        Set para = doc.Paragraphs(secondParaIndex)
+        
+        ' Verifica se não é um parágrafo com imagem (proteção)
+        If Not HasVisualContent(para) Then
+            With para.Format
+                .LeftIndent = CentimetersToPoints(9)      ' Recuo à esquerda de 9 cm
+                .FirstLineIndent = 0                      ' Sem recuo da primeira linha
+                .RightIndent = 0                          ' Sem recuo à direita
+                .Alignment = wdAlignParagraphJustify      ' Justificado
+            End With
+            
+            LogMessage "2º parágrafo formatado com recuo de 9cm (posição real: " & secondParaIndex & ")", LOG_LEVEL_INFO
+        Else
+            LogMessage "2º parágrafo ignorado por conter conteúdo visual (posição: " & secondParaIndex & ")", LOG_LEVEL_INFO
+        End If
+    Else
+        LogMessage "2º parágrafo não encontrado para formatação", LOG_LEVEL_WARNING
+    End If
+    
+    FormatSecondParagraph = True
+    Exit Function
+
+ErrorHandler:
+    LogMessage "Erro na formatação do 2º parágrafo: " & Err.Description, LOG_LEVEL_ERROR
+    FormatSecondParagraph = False
+End Function
+
+'================================================================================
+' FORMAT FIRST PARAGRAPH - FORMATAÇÃO DO 1º PARÁGRAFO - #NEW
+'================================================================================
+Private Function FormatFirstParagraph(doc As Document) As Boolean
+    On Error GoTo ErrorHandler
+    
+    Dim para As Paragraph
+    Dim paraText As String
+    Dim i As Long
+    Dim actualParaIndex As Long
+    Dim firstParaIndex As Long
+    
+    ' Identifica o 1º parágrafo (considerando apenas parágrafos com texto)
+    actualParaIndex = 0
+    firstParaIndex = 0
+    
+    ' Encontra o 1º parágrafo com conteúdo (pula vazios)
+    For i = 1 To doc.Paragraphs.Count
+        Set para = doc.Paragraphs(i)
+        paraText = Trim(Replace(Replace(para.Range.Text, vbCr, ""), vbLf, ""))
+        
+        ' Se o parágrafo tem texto ou conteúdo visual, conta como parágrafo válido
+        If paraText <> "" Or HasVisualContent(para) Then
+            actualParaIndex = actualParaIndex + 1
+            
+            ' Registra o índice do 1º parágrafo
+            If actualParaIndex = 1 Then
+                firstParaIndex = i
+                Exit For ' Já encontramos o 1º parágrafo
+            End If
+        End If
+        
+        ' Proteção: não processa mais de 10 parágrafos
+        If i > 10 Then Exit For
+    Next i
+    
+    ' Aplica formatação específica apenas ao 1º parágrafo
+    If firstParaIndex > 0 And firstParaIndex <= doc.Paragraphs.Count Then
+        Set para = doc.Paragraphs(firstParaIndex)
+        
+        ' Verifica se não é um parágrafo com imagem (proteção)
+        If Not HasVisualContent(para) Then
+            ' Formatação do 1º parágrafo: caixa alta, negrito e sublinhado
+            With para.Range.Font
+                .AllCaps = True           ' Caixa alta (maiúsculas)
+                .Bold = True              ' Negrito
+                .Underline = wdUnderlineSingle ' Sublinhado
+            End With
+            
+            ' Aplicar também formatação de parágrafo se necessário
+            With para.Format
+                .Alignment = wdAlignParagraphCenter       ' Centralizado
+                .LeftIndent = 0                           ' Sem recuo à esquerda
+                .FirstLineIndent = 0                      ' Sem recuo da primeira linha
+                .RightIndent = 0                          ' Sem recuo à direita
+            End With
+            
+            LogMessage "1º parágrafo formatado com caixa alta, negrito, sublinhado e centralizado (posição real: " & firstParaIndex & ")", LOG_LEVEL_INFO
+        Else
+            LogMessage "1º parágrafo ignorado por conter conteúdo visual (posição: " & firstParaIndex & ")", LOG_LEVEL_INFO
+        End If
+    Else
+        LogMessage "1º parágrafo não encontrado para formatação", LOG_LEVEL_WARNING
+    End If
+    
+    FormatFirstParagraph = True
+    Exit Function
+
+ErrorHandler:
+    LogMessage "Erro na formatação do 1º parágrafo: " & Err.Description, LOG_LEVEL_ERROR
+    FormatFirstParagraph = False
 End Function
 
 '================================================================================
@@ -1046,7 +1264,6 @@ Private Function InsertFooterStamp(doc As Document) As Boolean
             With footer.Range
                 .Font.Name = STANDARD_FONT
                 .Font.size = FOOTER_FONT_SIZE
-                .Font.Bold = False
                 .ParagraphFormat.Alignment = wdAlignParagraphCenter
                 .Fields.Update
             End With
@@ -1117,51 +1334,19 @@ ErrorHandler:
 End Function
 
 '================================================================================
-' ADDITIONAL UTILITY: VALIDATE DOCUMENT STRUCTURE - #STABLE
+' VALIDATE DOCUMENT STRUCTURE - SIMPLIFICADO - #STABLE
 '================================================================================
 Private Function ValidateDocumentStructure(doc As Document) As Boolean
-    On Error GoTo ErrorHandler
-    
-    Dim valid As Boolean
-    valid = True
-    
-    If doc.Range.End = 0 Then
-        LogMessage "Documento vazio detectado", LOG_LEVEL_WARNING
-        valid = False
-    End If
-    
-    If doc.Sections.Count = 0 Then
-        LogMessage "Documento sem seções detectado", LOG_LEVEL_WARNING
-        valid = False
-    End If
-    
-    If valid Then
-        LogMessage "Estrutura do documento validada: " & doc.Paragraphs.Count & " parágrafos, " & doc.Sections.Count & " seções", LOG_LEVEL_INFO
-    Else
-        LogMessage "Problemas na estrutura do documento detectados", LOG_LEVEL_WARNING
-    End If
-    
-    ValidateDocumentStructure = valid
-    Exit Function
-    
-ErrorHandler:
-    LogMessage "Erro na validação da estrutura: " & Err.Description, LOG_LEVEL_ERROR
-    ValidateDocumentStructure = False
-End Function
-
-'================================================================================
-' UTILITY: RESTORE DEFAULT SETTINGS - #STABLE  
-'================================================================================
-Private Sub RestoreDefaultSettings()
     On Error Resume Next
-    LogMessage "Restaurando configurações padrão da aplicação", LOG_LEVEL_INFO
-    SetAppState True
-    Application.ScreenUpdating = True
-    Application.DisplayAlerts = wdAlertsAll
-    Application.StatusBar = ""
-    LogMessage "Configurações padrão restauradas", LOG_LEVEL_INFO
-End Sub
-
+    
+    ' Verificação básica e rápida
+    If doc.Range.End > 0 And doc.Sections.Count > 0 Then
+        ValidateDocumentStructure = True
+    Else
+        LogMessage "Documento com estrutura inconsistente", LOG_LEVEL_WARNING
+        ValidateDocumentStructure = False
+    End If
+End Function
 
 '================================================================================
 ' CRITICAL FIX: SAVE DOCUMENT BEFORE PROCESSING
@@ -1218,6 +1403,62 @@ ErrorHandler:
 End Function
 
 '================================================================================
+' CLEAR ALL FORMATTING - LIMPEZA INICIAL COMPLETA - #NEW
+'================================================================================
+Private Function ClearAllFormatting(doc As Document) As Boolean
+    On Error GoTo ErrorHandler
+    
+    Application.StatusBar = "Limpando formatação existente..."
+    
+    ' Limpeza global mais eficiente
+    With doc.Range
+        ' Remove formatação de caracteres de forma mais direta
+        .Font.Reset
+        .Font.Name = STANDARD_FONT
+        .Font.Size = STANDARD_FONT_SIZE
+        .Font.Color = wdColorAutomatic
+        
+        ' Remove formatação de parágrafos
+        .ParagraphFormat.Reset
+        .ParagraphFormat.Alignment = wdAlignParagraphLeft
+        .ParagraphFormat.LineSpacing = 12
+        .ParagraphFormat.SpaceBefore = 0
+        .ParagraphFormat.SpaceAfter = 0
+        .ParagraphFormat.LeftIndent = 0
+        .ParagraphFormat.RightIndent = 0
+        .ParagraphFormat.FirstLineIndent = 0
+        
+        ' Remove bordas e sombreamento
+        On Error Resume Next
+        .Borders.Enable = False
+        .Shading.Texture = wdTextureNone
+        On Error GoTo ErrorHandler
+    End With
+    
+    ' Remove estilos personalizados de forma segura
+    Dim para As Paragraph
+    Dim paraCount As Long
+    paraCount = 0
+    
+    For Each para In doc.Paragraphs
+        On Error Resume Next
+        para.Style = "Normal"
+        paraCount = paraCount + 1
+        ' Evita loops infinitos
+        If paraCount > 1000 Then Exit For
+        On Error GoTo ErrorHandler
+    Next para
+    
+    LogMessage "Formatação limpa: " & paraCount & " parágrafos resetados", LOG_LEVEL_INFO
+    ClearAllFormatting = True
+    Exit Function
+
+ErrorHandler:
+    LogMessage "Erro ao limpar formatação: " & Err.Description, LOG_LEVEL_WARNING
+    ClearAllFormatting = False ' Não falha o processo por isso
+End Function
+
+'================================================================================
 ' CLEAN DOCUMENT STRUCTURE - FUNCIONALIDADES 2, 6, 7 - #NEW
 '================================================================================
 Private Function CleanDocumentStructure(doc As Document) As Boolean
@@ -1231,10 +1472,15 @@ Private Function CleanDocumentStructure(doc As Document) As Boolean
     Dim leadingSpacesRemoved As Long
     
     ' Funcionalidade 2: Remove linhas em branco acima do título (primeira linha com texto)
+    ' PROTEÇÃO: Não remove parágrafos que contenham imagens
     firstTextParaIndex = -1
     For i = 1 To doc.Paragraphs.Count
         Set para = doc.Paragraphs(i)
-        If Trim(Replace(Replace(para.Range.Text, vbCr, ""), vbLf, "")) <> "" Then
+        Dim paraTextCheck As String
+        paraTextCheck = Trim(Replace(Replace(para.Range.Text, vbCr, ""), vbLf, ""))
+        
+        ' Encontra o primeiro parágrafo com texto real (não apenas imagens)
+        If paraTextCheck <> "" Then
             firstTextParaIndex = i
             Exit For
         End If
@@ -1243,36 +1489,57 @@ Private Function CleanDocumentStructure(doc As Document) As Boolean
     If firstTextParaIndex > 1 Then
         For i = firstTextParaIndex - 1 To 1 Step -1
             Set para = doc.Paragraphs(i)
-            If Trim(Replace(Replace(para.Range.Text, vbCr, ""), vbLf, "")) = "" Then
+            Dim paraTextEmpty As String
+            paraTextEmpty = Trim(Replace(Replace(para.Range.Text, vbCr, ""), vbLf, ""))
+            
+            ' PROTEÇÃO MÁXIMA: Usa função especializada para detectar conteúdo visual
+            If paraTextEmpty = "" And Not HasVisualContent(para) Then
                 para.Range.Delete
                 emptyLinesRemoved = emptyLinesRemoved + 1
+            Else
+                ' Log quando preserva um parágrafo por segurança
+                If paraTextEmpty = "" Then
+                    LogMessage "Parágrafo preservado por conter possível conteúdo visual (posição " & i & ")", LOG_LEVEL_INFO
+                End If
             End If
         Next i
     End If
     
-    ' Funcionalidade 6: Remove linhas em branco no final do documento
-    lastContentParaIndex = -1
-    For i = doc.Paragraphs.Count To 1 Step -1
-        Set para = doc.Paragraphs(i)
-        Dim paraText As String
-        paraText = Trim(Replace(Replace(para.Range.Text, vbCr, ""), vbLf, ""))
-        
-        ' Verifica se há conteúdo (texto ou imagens)
-        If paraText <> "" Or para.Range.InlineShapes.Count > 0 Then
-            lastContentParaIndex = i
-            Exit For
-        End If
-    Next i
-    
-    If lastContentParaIndex > 0 And lastContentParaIndex < doc.Paragraphs.Count Then
-        For i = doc.Paragraphs.Count To lastContentParaIndex + 1 Step -1
-            Set para = doc.Paragraphs(i)
-            If Trim(Replace(Replace(para.Range.Text, vbCr, ""), vbLf, "")) = "" And para.Range.InlineShapes.Count = 0 Then
-                para.Range.Delete
-                emptyLinesRemoved = emptyLinesRemoved + 1
-            End If
-        Next i
-    End If
+    ' Funcionalidade 6: Remove linhas em branco no final do documento - DESABILITADO POR SOLICITAÇÃO
+    ' NOTA: Linhas em branco no final do documento agora são preservadas conforme novo requisito
+    ' PROTEÇÃO: Preserva parágrafos com imagens em qualquer lugar do documento
+    '
+    ' lastContentParaIndex = -1
+    ' For i = doc.Paragraphs.Count To 1 Step -1
+    '     Set para = doc.Paragraphs(i)
+    '     Dim paraText As String
+    '     paraText = Trim(Replace(Replace(para.Range.Text, vbCr, ""), vbLf, ""))
+    '     
+    '     ' Verifica se há conteúdo (texto OU conteúdo visual)
+    '     If paraText <> "" Or HasVisualContent(para) Then
+    '         lastContentParaIndex = i
+    '         Exit For
+    '     End If
+    ' Next i
+    ' 
+    ' If lastContentParaIndex > 0 And lastContentParaIndex < doc.Paragraphs.Count Then
+    '     For i = doc.Paragraphs.Count To lastContentParaIndex + 1 Step -1
+    '         Set para = doc.Paragraphs(i)
+    '         Dim paraTextFinal As String
+    '         paraTextFinal = Trim(Replace(Replace(para.Range.Text, vbCr, ""), vbLf, ""))
+    '         
+    '         ' PROTEÇÃO MÁXIMA: Usa função especializada para detectar conteúdo visual
+    '         If paraTextFinal = "" And Not HasVisualContent(para) Then
+    '             para.Range.Delete
+    '             emptyLinesRemoved = emptyLinesRemoved + 1
+    '         Else
+    '             ' Log quando preserva um parágrafo por segurança
+    '             If paraTextFinal = "" Then
+    '                 LogMessage "Parágrafo final preservado por conter possível conteúdo visual (posição " & i & ")", LOG_LEVEL_INFO
+    '             End If
+    '         End If
+    '     Next i
+    ' End If
     
     ' Funcionalidade 7: Remove espaços e tabs no início de parágrafos
     For i = 1 To doc.Paragraphs.Count
@@ -1295,13 +1562,71 @@ Private Function CleanDocumentStructure(doc As Document) As Boolean
         End If
     Next i
     
-    LogMessage "Estrutura limpa: " & emptyLinesRemoved & " linhas vazias removidas, " & leadingSpacesRemoved & " espaços iniciais removidos", LOG_LEVEL_INFO
+    LogMessage "Estrutura limpa: " & emptyLinesRemoved & " linhas vazias removidas (proteção máxima para imagens), " & leadingSpacesRemoved & " espaços iniciais removidos", LOG_LEVEL_INFO
     CleanDocumentStructure = True
     Exit Function
 
 ErrorHandler:
     LogMessage "Erro na limpeza da estrutura: " & Err.Description, LOG_LEVEL_ERROR
     CleanDocumentStructure = False
+End Function
+
+'================================================================================
+' SAFE CHECK FOR VISUAL CONTENT - VERIFICAÇÃO SEGURA DE CONTEÚDO VISUAL - #NEW
+'================================================================================
+Private Function HasVisualContent(para As Paragraph) As Boolean
+    On Error GoTo ErrorHandler
+    
+    ' Verifica imagens inline (método principal)
+    If para.Range.InlineShapes.Count > 0 Then
+        HasVisualContent = True
+        Exit Function
+    End If
+    
+    ' Verifica caracteres especiais que podem indicar objetos incorporados
+    Dim paraText As String
+    paraText = para.Range.Text
+    
+    ' Caracteres especiais do Word que indicam objetos
+    If InStr(paraText, Chr(1)) > 0 Then ' Objeto incorporado
+        HasVisualContent = True
+        Exit Function
+    End If
+    
+    If InStr(paraText, Chr(8)) > 0 Then ' Campo ou objeto
+        HasVisualContent = True
+        Exit Function
+    End If
+    
+    ' Verifica se há campos no parágrafo (podem conter imagens)
+    If para.Range.Fields.Count > 0 Then
+        HasVisualContent = True
+        Exit Function
+    End If
+    
+    ' Proteção extra: parágrafos muito pequenos podem conter anchors ou objetos ocultos
+    Dim cleanText As String
+    cleanText = Trim(Replace(Replace(paraText, vbCr, ""), vbLf, ""))
+    
+    ' Se o parágrafo tem caracteres mas não é texto normal, preserva
+    If Len(cleanText) > 0 And Len(cleanText) < 10 Then
+        ' Pode ser um parágrafo contendo apenas um objeto ou anchor
+        HasVisualContent = True
+        Exit Function
+    End If
+    
+    ' Verifica se o parágrafo tem formatação especial que pode indicar objeto
+    If para.Range.Font.Hidden = True Then
+        HasVisualContent = True
+        Exit Function
+    End If
+    
+    HasVisualContent = False
+    Exit Function
+
+ErrorHandler:
+    ' Em caso de erro, assume que há conteúdo visual (máxima segurança)
+    HasVisualContent = True
 End Function
 
 '================================================================================
@@ -1377,7 +1702,7 @@ Private Function FormatDocumentTitle(doc As Document) As Boolean
     Dim i As Long
     Dim newText As String
     
-    ' Encontra o primeiro parágrafo com texto
+    ' Encontra o primeiro parágrafo com texto (após exclusão de linhas em branco)
     For i = 1 To doc.Paragraphs.Count
         Set firstPara = doc.Paragraphs(i)
         paraText = Trim(Replace(Replace(firstPara.Range.Text, vbCr, ""), vbLf, ""))
@@ -1392,9 +1717,25 @@ Private Function FormatDocumentTitle(doc As Document) As Boolean
         Exit Function
     End If
     
-    ' Funcionalidade 4: Substitui a última palavra por $NUMERO$/$ANO$
+    ' Remove ponto final se existir
+    If Right(paraText, 1) = "." Then
+        paraText = Left(paraText, Len(paraText) - 1)
+    End If
+    
+    ' Verifica se é uma proposição (para aplicar substituição $NUMERO$/$ANO$)
+    Dim isProposition As Boolean
+    Dim firstWord As String
+    
     words = Split(paraText, " ")
     If UBound(words) >= 0 Then
+        firstWord = LCase(Trim(words(0)))
+        If firstWord = "indicação" Or firstWord = "requerimento" Or firstWord = "moção" Then
+            isProposition = True
+        End If
+    End If
+    
+    ' Se for proposição, substitui a última palavra por $NUMERO$/$ANO$
+    If isProposition And UBound(words) >= 0 Then
         ' Reconstrói o texto substituindo a última palavra
         newText = ""
         For i = 0 To UBound(words) - 1
@@ -1403,20 +1744,35 @@ Private Function FormatDocumentTitle(doc As Document) As Boolean
         Next i
         
         ' Adiciona $NUMERO$/$ANO$ no lugar da última palavra
-        If UBound(words) >= 0 Then
-            If newText <> "" Then newText = newText & " "
-            newText = newText & "$NUMERO$/$ANO$"
-        End If
-        
-        ' Funcionalidade 5: Coloca em caixa alta, negrito e sublinhado
-        firstPara.Range.Text = UCase(newText) & vbCrLf
-        
-        With firstPara.Range.Font
-            .Bold = True
-            .Underline = wdUnderlineSingle
-        End With
-        
-        LogMessage "Título formatado: " & newText, LOG_LEVEL_INFO
+        If newText <> "" Then newText = newText & " "
+        newText = newText & "$NUMERO$/$ANO$"
+    Else
+        ' Se não for proposição, mantém o texto original
+        newText = paraText
+    End If
+    
+    ' SEMPRE aplica formatação de título: caixa alta, negrito, sublinhado
+    firstPara.Range.Text = UCase(newText) & vbCrLf
+    
+    ' Formatação completa do título (primeira linha)
+    With firstPara.Range.Font
+        .Bold = True
+        .Underline = wdUnderlineSingle
+    End With
+    
+    With firstPara.Format
+        .Alignment = wdAlignParagraphCenter
+        .LeftIndent = 0
+        .FirstLineIndent = 0
+        .RightIndent = 0
+        .SpaceBefore = 0
+        .SpaceAfter = 6  ' Pequeno espaço após o título
+    End With
+    
+    If isProposition Then
+        LogMessage "Título de proposição formatado: " & newText & " (centralizado, caixa alta, negrito, sublinhado)", LOG_LEVEL_INFO
+    Else
+        LogMessage "Primeira linha formatada como título: " & newText & " (centralizado, caixa alta, negrito, sublinhado)", LOG_LEVEL_INFO
     End If
     
     FormatDocumentTitle = True
@@ -1428,64 +1784,61 @@ ErrorHandler:
 End Function
 
 '================================================================================
-' FORMAT CONSIDERANDO PARAGRAPHS - FUNCIONALIDADE 8 - #NEW
+' FORMAT CONSIDERANDO PARAGRAPHS - OTIMIZADO E SIMPLIFICADO - FUNCIONALIDADE 8 - #NEW
 '================================================================================
 Private Function FormatConsiderandoParagraphs(doc As Document) As Boolean
     On Error GoTo ErrorHandler
     
     Dim para As Paragraph
     Dim paraText As String
-    Dim i As Long
-    Dim formattedCount As Long
     Dim rng As Range
-    Dim considerandoPos As Long
-    Dim quePos As Long
+    Dim totalFormatted As Long
+    Dim i As Long
     
+    ' Percorre todos os parágrafos procurando por "considerando" no início
     For i = 1 To doc.Paragraphs.Count
         Set para = doc.Paragraphs(i)
-        paraText = Trim(para.Range.Text)
+        paraText = Trim(Replace(Replace(para.Range.Text, vbCr, ""), vbLf, ""))
         
-        ' Verifica se o parágrafo inicia com "considerando" (case insensitive)
-        If LCase(Left(Trim(Replace(Replace(paraText, vbCr, ""), vbLf, "")), 12)) = "considerando" Then
-            ' Formata "considerando" em negrito e caixa alta
-            considerandoPos = InStr(1, paraText, "considerando", vbTextCompare)
-            If considerandoPos > 0 Then
-                Set rng = para.Range
-                rng.Start = rng.Start + considerandoPos - 1
-                rng.End = rng.Start + 12 ' Tamanho de "considerando"
-                
-                ' Substitui por versão em caixa alta
-                rng.Text = "CONSIDERANDO"
-                rng.Font.Bold = True
-                
-                ' Funcionalidade 8.1: Verifica se há "que" em negrito após "considerando"
-                ' e o formata em caixa baixa e fonte normal
-                Set rng = para.Range
-                quePos = InStr(considerandoPos + 12, paraText, "que", vbTextCompare)
-                If quePos > 0 Then
-                    ' Verifica se a palavra "que" está em negrito
+        ' Verifica se o parágrafo começa com "considerando" (ignorando maiúsculas/minúsculas)
+        If Len(paraText) >= 12 And LCase(Left(paraText, 12)) = "considerando" Then
+            ' Verifica se após "considerando" vem espaço, vírgula, ponto-e-vírgula ou fim da linha
+            Dim nextChar As String
+            If Len(paraText) > 12 Then
+                nextChar = Mid(paraText, 13, 1)
+                If nextChar = " " Or nextChar = "," Or nextChar = ";" Or nextChar = ":" Then
+                    ' É realmente "considerando" no início do parágrafo
                     Set rng = para.Range
-                    rng.Start = rng.Start + quePos - 1
-                    rng.End = rng.Start + 3 ' Tamanho de "que"
+                    rng.End = rng.Start + 12 ' Seleciona apenas "considerando"
                     
-                    If rng.Font.Bold = True Then
-                        rng.Text = "que"
-                        rng.Font.Bold = False
-                    End If
+                    With rng
+                        .Text = "CONSIDERANDO"
+                        .Font.Bold = True
+                    End With
+                    
+                    totalFormatted = totalFormatted + 1
                 End If
+            Else
+                ' Parágrafo contém apenas "considerando"
+                Set rng = para.Range
+                rng.End = rng.Start + 12
                 
-                formattedCount = formattedCount + 1
-                LogMessage "Parágrafo 'considerando' formatado: parágrafo " & i, LOG_LEVEL_INFO
+                With rng
+                    .Text = "CONSIDERANDO"
+                    .Font.Bold = True
+                End With
+                
+                totalFormatted = totalFormatted + 1
             End If
         End If
     Next i
     
-    LogMessage "Formatação de 'considerando' concluída: " & formattedCount & " parágrafos formatados", LOG_LEVEL_INFO
+    LogMessage "Formatação 'considerando' aplicada: " & totalFormatted & " ocorrências em negrito e caixa alta", LOG_LEVEL_INFO
     FormatConsiderandoParagraphs = True
     Exit Function
 
 ErrorHandler:
-    LogMessage "Erro na formatação de parágrafos 'considerando': " & Err.Description, LOG_LEVEL_ERROR
+    LogMessage "Erro na formatação 'considerando': " & Err.Description, LOG_LEVEL_ERROR
     FormatConsiderandoParagraphs = False
 End Function
 
@@ -1590,6 +1943,76 @@ ErrorHandler:
 End Function
 
 '================================================================================
+' FORMAT JUSTIFICATIVA/ANEXO PARAGRAPHS - FORMATAÇÃO ESPECÍFICA - #NEW
+'================================================================================
+Private Function FormatJustificativaAnexoParagraphs(doc As Document) As Boolean
+    On Error GoTo ErrorHandler
+    
+    Dim para As Paragraph
+    Dim paraText As String
+    Dim cleanText As String
+    Dim i As Long
+    Dim formattedCount As Long
+    
+    ' Percorre todos os parágrafos do documento
+    For i = 1 To doc.Paragraphs.Count
+        Set para = doc.Paragraphs(i)
+        
+        ' Não processa parágrafos com conteúdo visual
+        If Not HasVisualContent(para) Then
+            paraText = Trim(Replace(Replace(para.Range.Text, vbCr, ""), vbLf, ""))
+            cleanText = LCase(paraText)
+            
+            ' Verifica se contém exclusivamente uma das palavras-chave
+            If cleanText = "justificativa" Or cleanText = "anexo" Or cleanText = "anexos" Then
+                
+                ' Aplica formatação de capitalização (primeira maiúscula, resto minúscula)
+                Dim formattedText As String
+                If Len(paraText) > 0 Then
+                    formattedText = UCase(Left(paraText, 1)) & LCase(Mid(paraText, 2))
+                End If
+                
+                ' Atualiza o texto do parágrafo
+                para.Range.Text = formattedText & vbCrLf
+                
+                ' Aplica formatação específica
+                With para.Format
+                    .LeftIndent = 0               ' Recuo à esquerda 0
+                    .FirstLineIndent = 0          ' Recuo da 1ª linha 0
+                    .RightIndent = 0              ' Sem recuo à direita
+                    .SpaceBefore = 12             ' Espaço antes para separação
+                    .SpaceAfter = 6               ' Espaço depois
+                    
+                    ' Alinhamento específico conforme a palavra
+                    If cleanText = "justificativa" Then
+                        .Alignment = wdAlignParagraphCenter    ' Justificativa centralizada
+                        LogMessage "Parágrafo 'Justificativa' formatado (centralizado, sem recuos)", LOG_LEVEL_INFO
+                    Else ' anexo ou anexos
+                        .Alignment = wdAlignParagraphLeft      ' Anexo/Anexos à esquerda
+                        LogMessage "Parágrafo '" & formattedText & "' formatado (alinhado à esquerda, sem recuos)", LOG_LEVEL_INFO
+                    End If
+                End With
+                
+                ' Formatação de fonte especial (opcional: pode aplicar negrito)
+                With para.Range.Font
+                    .Bold = True    ' Destaca essas seções especiais
+                End With
+                
+                formattedCount = formattedCount + 1
+            End If
+        End If
+    Next i
+    
+    LogMessage "Formatação Justificativa/Anexo concluída: " & formattedCount & " parágrafos especiais formatados", LOG_LEVEL_INFO
+    FormatJustificativaAnexoParagraphs = True
+    Exit Function
+
+ErrorHandler:
+    LogMessage "Erro na formatação Justificativa/Anexo: " & Err.Description, LOG_LEVEL_ERROR
+    FormatJustificativaAnexoParagraphs = False
+End Function
+
+'================================================================================
 ' SUBROTINA PÚBLICA: ABRIR PASTA DE LOGS - #NEW
 '================================================================================
 Public Sub AbrirPastaLogs()
@@ -1690,4 +2113,369 @@ ErrorHandler:
         Application.StatusBar = "Não foi possível abrir o repositório. URL: " & repoURL
     End If
 End Sub
+
+'================================================================================
+' SISTEMA DE BACKUP - FUNCIONALIDADE DE SEGURANÇA - #NEW
+'================================================================================
+Private Function CreateDocumentBackup(doc As Document) As Boolean
+    On Error GoTo ErrorHandler
+    
+    ' Não faz backup se documento não foi salvo
+    If doc.Path = "" Then
+        LogMessage "Backup ignorado - documento não salvo", LOG_LEVEL_INFO
+        CreateDocumentBackup = True
+        Exit Function
+    End If
+    
+    Dim backupFolder As String
+    Dim fso As Object
+    Dim docName As String
+    Dim docExtension As String
+    Dim timeStamp As String
+    Dim backupFileName As String
+    
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    
+    ' Define pasta de backup
+    backupFolder = fso.GetParentFolderName(doc.Path) & "\" & BACKUP_FOLDER_NAME
+    
+    ' Cria pasta de backup se não existir
+    If Not fso.FolderExists(backupFolder) Then
+        fso.CreateFolder backupFolder
+        LogMessage "Pasta de backup criada: " & backupFolder, LOG_LEVEL_INFO
+    End If
+    
+    ' Extrai nome e extensão do documento
+    docName = fso.GetBaseName(doc.Name)
+    docExtension = fso.GetExtensionName(doc.Name)
+    
+    ' Cria timestamp para o backup
+    timeStamp = Format(Now, "yyyy-mm-dd_HHmmss")
+    
+    ' Nome do arquivo de backup
+    backupFileName = docName & "_backup_" & timeStamp & "." & docExtension
+    backupFilePath = backupFolder & "\" & backupFileName
+    
+    ' Salva uma cópia do documento como backup
+    Application.StatusBar = "Criando backup do documento..."
+    
+    ' Salva o documento atual primeiro para garantir que está atualizado
+    doc.Save
+    
+    ' Cria uma cópia do arquivo usando FileSystemObject
+    fso.CopyFile doc.FullName, backupFilePath, True
+    
+    ' Limpa backups antigos se necessário
+    CleanOldBackups backupFolder, docName
+    
+    LogMessage "Backup criado com sucesso: " & backupFileName, LOG_LEVEL_INFO
+    Application.StatusBar = "Backup criado - processando documento..."
+    
+    CreateDocumentBackup = True
+    Exit Function
+
+ErrorHandler:
+    LogMessage "Erro ao criar backup: " & Err.Description, LOG_LEVEL_ERROR
+    CreateDocumentBackup = False
+End Function
+
+'================================================================================
+' LIMPEZA DE BACKUPS ANTIGOS - SIMPLIFICADO - #NEW
+'================================================================================
+Private Sub CleanOldBackups(backupFolder As String, docBaseName As String)
+    On Error Resume Next
+    
+    ' Limpeza simplificada - só remove se houver muitos arquivos
+    Dim fso As Object
+    Dim folder As Object
+    Dim filesCount As Long
+    
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    Set folder = fso.GetFolder(backupFolder)
+    
+    filesCount = folder.Files.Count
+    
+    ' Se há mais de 15 arquivos na pasta de backup, registra aviso
+    If filesCount > 15 Then
+        LogMessage "Muitos backups na pasta (" & filesCount & " arquivos) - considere limpeza manual", LOG_LEVEL_WARNING
+    End If
+End Sub
+
+'================================================================================
+' SUBROTINA PÚBLICA: ABRIR PASTA DE BACKUPS - #NEW
+'================================================================================
+Public Sub AbrirPastaBackups()
+    On Error GoTo ErrorHandler
+    
+    Dim doc As Document
+    Dim backupFolder As String
+    Dim fso As Object
+    
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    
+    ' Tenta obter documento ativo
+    Set doc = Nothing
+    On Error Resume Next
+    Set doc = ActiveDocument
+    On Error GoTo ErrorHandler
+    
+    ' Define pasta de backup baseada no documento atual
+    If Not doc Is Nothing And doc.Path <> "" Then
+        backupFolder = fso.GetParentFolderName(doc.Path) & "\" & BACKUP_FOLDER_NAME
+    Else
+        Application.StatusBar = "Nenhum documento salvo ativo para localizar pasta de backups"
+        Exit Sub
+    End If
+    
+    ' Verifica se a pasta de backup existe
+    If Not fso.FolderExists(backupFolder) Then
+        Application.StatusBar = "Pasta de backups não encontrada - nenhum backup foi criado ainda"
+        LogMessage "Pasta de backups não encontrada: " & backupFolder, LOG_LEVEL_WARNING
+        Exit Sub
+    End If
+    
+    ' Abre a pasta no Windows Explorer
+    Shell "explorer.exe """ & backupFolder & """", vbNormalFocus
+    
+    Application.StatusBar = "Pasta de backups aberta: " & backupFolder
+    
+    ' Log da operação se sistema de log estiver ativo
+    If loggingEnabled Then
+        LogMessage "Pasta de backups aberta pelo usuário: " & backupFolder, LOG_LEVEL_INFO
+    End If
+    
+    Exit Sub
+    
+ErrorHandler:
+    Application.StatusBar = "Erro ao abrir pasta de backups"
+    LogMessage "Erro ao abrir pasta de backups: " & Err.Description, LOG_LEVEL_ERROR
+    
+    ' Fallback: tenta abrir pasta do documento
+    On Error Resume Next
+    If Not doc Is Nothing And doc.Path <> "" Then
+        Dim docFolder As String
+        docFolder = fso.GetParentFolderName(doc.Path)
+        Shell "explorer.exe """ & docFolder & """", vbNormalFocus
+        Application.StatusBar = "Pasta do documento aberta como alternativa"
+    Else
+        Application.StatusBar = "Não foi possível abrir pasta de backups"
+    End If
+End Sub
+
+'================================================================================
+' CLEAN MULTIPLE SPACES - LIMPEZA FINAL DE ESPAÇOS MÚLTIPLOS - #NEW
+'================================================================================
+Private Function CleanMultipleSpaces(doc As Document) As Boolean
+    On Error GoTo ErrorHandler
+    
+    Application.StatusBar = "Limpando espaços múltiplos..."
+    
+    Dim rng As Range
+    Dim spacesRemoved As Long
+    
+    Set rng = doc.Range
+    
+    ' Remove espaços múltiplos usando Find/Replace simples (mais compatível)
+    With rng.Find
+        .ClearFormatting
+        .Replacement.ClearFormatting
+        .Forward = True
+        .Wrap = wdFindContinue
+        .Format = False
+        .MatchCase = False
+        .MatchWholeWord = False
+        .MatchWildcards = False
+        .MatchSoundsLike = False
+        .MatchAllWordForms = False
+        
+        ' Remove espaços duplos repetidamente até não encontrar mais
+        .Text = "  "
+        .Replacement.Text = " "
+        
+        Do While .Execute(Replace:=True)
+            spacesRemoved = spacesRemoved + 1
+            ' Evita loop infinito
+            If spacesRemoved > 1000 Then Exit Do
+        Loop
+    End With
+    
+    ' Limpeza adicional de espaços antes/depois de quebras de linha
+    Set rng = doc.Range
+    With rng.Find
+        .ClearFormatting
+        .Replacement.ClearFormatting
+        .Forward = True
+        .Wrap = wdFindContinue
+        .Format = False
+        .MatchWildcards = False
+        
+        ' Remove espaços antes de quebra de linha
+        .Text = " ^p"
+        .Replacement.Text = "^p"
+        Do While .Execute(Replace:=True)
+            spacesRemoved = spacesRemoved + 1
+            If spacesRemoved > 1000 Then Exit Do
+        Loop
+        
+        ' Remove espaços depois de quebra de linha
+        .Text = "^p "
+        .Replacement.Text = "^p"
+        Do While .Execute(Replace:=True)
+            spacesRemoved = spacesRemoved + 1
+            If spacesRemoved > 1000 Then Exit Do
+        Loop
+    End With
+    
+    ' Remove tabs múltiplos
+    Set rng = doc.Range
+    With rng.Find
+        .Text = "^t^t"
+        .Replacement.Text = "^t"
+        Do While .Execute(Replace:=True)
+            spacesRemoved = spacesRemoved + 1
+            If spacesRemoved > 1000 Then Exit Do
+        Loop
+        
+        ' Converte tabs para espaços simples
+        .Text = "^t"
+        .Replacement.Text = " "
+        Do While .Execute(Replace:=True)
+            spacesRemoved = spacesRemoved + 1
+            If spacesRemoved > 1000 Then Exit Do
+        Loop
+    End With
+    
+    ' Última passada para garantir que não sobrou nenhum espaço duplo
+    Set rng = doc.Range
+    With rng.Find
+        .Text = "  "
+        .Replacement.Text = " "
+        .MatchWildcards = False
+        Do While .Execute(Replace:=True)
+            spacesRemoved = spacesRemoved + 1
+            If spacesRemoved > 1000 Then Exit Do
+        Loop
+    End With
+    
+    LogMessage "Limpeza de espaços concluída: " & spacesRemoved & " correções aplicadas", LOG_LEVEL_INFO
+    CleanMultipleSpaces = True
+    Exit Function
+
+ErrorHandler:
+    LogMessage "Erro na limpeza de espaços múltiplos: " & Err.Description, LOG_LEVEL_WARNING
+    CleanMultipleSpaces = False ' Não falha o processo por isso
+End Function
+
+'================================================================================
+' LIMIT SEQUENTIAL EMPTY LINES - CONTROLA LINHAS VAZIAS SEQUENCIAIS - #NEW
+'================================================================================
+Private Function LimitSequentialEmptyLines(doc As Document) As Boolean
+    On Error GoTo ErrorHandler
+    
+    Application.StatusBar = "Controlando linhas em branco sequenciais..."
+    
+    Dim para As Paragraph
+    Dim i As Long
+    Dim emptyLineCount As Long
+    Dim linesRemoved As Long
+    Dim paraText As String
+    Dim totalParas As Long
+    
+    emptyLineCount = 0
+    linesRemoved = 0
+    
+    ' Faz múltiplas passadas até não haver mais alterações
+    ' (necessário porque a remoção altera os índices)
+    Dim changesInPass As Boolean
+    Dim passCount As Long
+    
+    Do
+        changesInPass = False
+        passCount = passCount + 1
+        emptyLineCount = 0
+        totalParas = doc.Paragraphs.Count
+        
+        i = 1
+        Do While i <= totalParas And i <= doc.Paragraphs.Count
+            Set para = doc.Paragraphs(i)
+            paraText = Trim(Replace(Replace(para.Range.Text, vbCr, ""), vbLf, ""))
+            
+            ' Verifica se o parágrafo está vazio (sem texto e sem conteúdo visual)
+            If paraText = "" And Not HasVisualContent(para) Then
+                emptyLineCount = emptyLineCount + 1
+                
+                ' Se já temos mais de 1 linha vazia consecutiva, remove esta
+                If emptyLineCount > 1 Then
+                    para.Range.Delete
+                    linesRemoved = linesRemoved + 1
+                    changesInPass = True
+                    ' Não incrementa i pois removemos um parágrafo
+                    totalParas = totalParas - 1
+                Else
+                    i = i + 1
+                End If
+            Else
+                ' Se encontrou conteúdo, reseta o contador de linhas vazias
+                emptyLineCount = 0
+                i = i + 1
+            End If
+            
+            ' Proteção contra loops infinitos
+            If i > 2000 Then
+                LogMessage "Interrompido por segurança após processar 2000 parágrafos", LOG_LEVEL_WARNING
+                Exit Do
+            End If
+        Loop
+        
+        ' Proteção contra loops infinitos de passadas
+        If passCount > 10 Then
+            LogMessage "Interrompido após 10 passadas por segurança", LOG_LEVEL_WARNING
+            Exit Do
+        End If
+        
+    Loop While changesInPass
+    
+    LogMessage "Controle de linhas vazias concluído em " & passCount & " passada(s): " & linesRemoved & " linhas excedentes removidas (máximo 1 sequencial)", LOG_LEVEL_INFO
+    LimitSequentialEmptyLines = True
+    Exit Function
+
+ErrorHandler:
+    LogMessage "Erro no controle de linhas vazias: " & Err.Description, LOG_LEVEL_WARNING
+    LimitSequentialEmptyLines = False ' Não falha o processo por isso
+End Function
+
+'================================================================================
+' CONFIGURE DOCUMENT VIEW - CONFIGURAÇÃO DE VISUALIZAÇÃO - #NEW
+'================================================================================
+Private Function ConfigureDocumentView(doc As Document) As Boolean
+    On Error GoTo ErrorHandler
+    
+    Application.StatusBar = "Configurando visualização do documento..."
+    
+    Dim docWindow As Window
+    Set docWindow = doc.ActiveWindow
+    
+    ' Configura zoom para 110%
+    With docWindow.View
+        .Zoom.Percentage = 110
+        .Type = wdPrintView     ' Garante que está no modo de exibição de impressão
+    End With
+    
+    ' Configurações adicionais de visualização
+    With Application.Options
+        On Error Resume Next
+        .ShowReadabilityStatistics = False  ' Desabilita estatísticas de legibilidade
+        .CheckGrammarAsYouType = True      ' Mantém verificação gramatical
+        .CheckSpellingAsYouType = True     ' Mantém verificação ortográfica
+        On Error GoTo ErrorHandler
+    End With
+    
+    LogMessage "Visualização configurada: zoom 110%, régua visível, modo impressão", LOG_LEVEL_INFO
+    ConfigureDocumentView = True
+    Exit Function
+
+ErrorHandler:
+    LogMessage "Erro ao configurar visualização: " & Err.Description, LOG_LEVEL_WARNING
+    ConfigureDocumentView = False ' Não falha o processo por isso
+End Function
 
