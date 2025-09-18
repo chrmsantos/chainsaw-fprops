@@ -71,7 +71,7 @@ Private Const HEADER_DISTANCE_CM As Double = 0.3
 Private Const FOOTER_DISTANCE_CM As Double = 0.9
 
 ' Header image constants
-Private Const HEADER_IMAGE_RELATIVE_PATH As String = "\\strqnapmain\Dir. Legislativa\Christian\chainsaw-fprops\private-data\stamp.png"
+Private Const HEADER_IMAGE_RELATIVE_PATH As String = "\chainsaw-fprops\private-data\Stamp.png"
 Private Const HEADER_IMAGE_MAX_WIDTH_CM As Double = 21
 Private Const HEADER_IMAGE_TOP_MARGIN_CM As Double = 0.7
 Private Const HEADER_IMAGE_HEIGHT_RATIO As Double = 0.19
@@ -856,7 +856,7 @@ Private Function InsertHeaderStamp(doc As Document) As Boolean
     If Dir(imgFile) = "" Then
         imgFile = Environ("USERPROFILE") & HEADER_IMAGE_RELATIVE_PATH
         If Dir(imgFile) = "" Then
-            imgFile = "\\server\Pictures\LegisTabStamp\HeaderStamp.png"
+            imgFile = "\\strqnapmain\Dir. Legislativa\Christian" & HEADER_IMAGE_RELATIVE_PATH
             If Dir(imgFile) = "" Then
                 MsgBox "Imagem de cabeçalho não encontrada nos locais esperados." & vbCrLf & _
                        "Verifique se o arquivo existe em: " & HEADER_IMAGE_RELATIVE_PATH, _
