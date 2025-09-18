@@ -1,25 +1,43 @@
 ' =============================================================================
-' std-legis-docs - Padronização e automação avançada de documentos Word em VBA
-' Versão: 2.0.1-stable | Data: 2025-09-11
-' Autor: Christian Martin dos Santos | github.com/chrmsantos/std-legis-docs
+' PROJETO: CHAINSAW FOR PROPOSALS (CHAINSW-FPROPS)
 ' =============================================================================
-' Solução open source para formatação, segurança e interface.
-' aprimorada de documentos institucionais no Microsoft Word.
-' Licença: Apache 2.0 modificada com cláusula 10 (restrição comercial), ver LICENSE
+'
+' Sistema automatizado de padronização de documentos legislativos no Microsoft Word
+'
+' Licença: Apache 2.0 modificada (ver LICENSE)
+' Versão: 1.0-alpha7 | Data: 2025-09-18
+' Repositório: github.com/chrmsantos/chainsaw-fprops
+' Autor: Christian Martin dos Santos <chrmsantos@gmail.com>
+'
 ' =============================================================================
-' Funcionalidades principais:
-' - Segurança e robustez (recuperação, tratamento de erros)
-' - Interface aprimorada (mensagens, status dinâmico)
-' - Padronização e formatação:
-'     • Margens automáticas (superior, inferior, esquerda, direita)
-'     • Fonte padrão Arial, tamanho 12, espaçamento entrelinhas 1,4
-'     • Recuo de parágrafo e primeira linha conforme regras institucionais
-'     • Cabeçalho institucional com imagem personalizada centralizada
-'     • Numeração automática de páginas centralizada no rodapé
-'     • Remoção de marcas d'água e linhas em branco iniciais
-'     • Verificação de estrutura mínima
-'     • Hifenização automática e alinhamento justificado
-' - Performance e utilitários (processamento seguro, undo customizado)
+' FUNCIONALIDADES PRINCIPAIS:
+' =============================================================================
+'
+' • VERIFICAÇÕES DE SEGURANÇA E COMPATIBILIDADE:
+'   - Validação de versão do Word (mínimo: 2010)
+'   - Verificação de tipo e proteção do documento
+'   - Controle de espaço em disco e estrutura mínima
+'   - Proteção contra falhas e recuperação automática
+'
+' • FORMATAÇÃO AUTOMATIZADA INSTITUCIONAL:
+'   - Configuração de margens e orientação (A4)
+'   - Fonte Arial 12pt com espaçamento 1.4
+'   - Recuos e alinhamento justificado
+'   - Cabeçalho com logotipo institucional
+'   - Rodapé com numeração centralizada
+'   - Remoção de marcas d'água e formatações manuais
+'
+' • SISTEMA DE LOGS E MONITORAMENTO:
+'   - Registro detalhado de operações
+'   - Controle de erros com fallback
+'   - Mensagens na barra de status
+'   - Histórico de execução
+'
+' • PERFORMANCE OTIMIZADA:
+'   - Processamento eficiente para documentos grandes
+'   - Desabilitação temporária de atualizações visuais
+'   - Gerenciamento inteligente de recursos
+'
 ' =============================================================================
 
 'VBA
@@ -110,11 +128,8 @@ Public Sub PadronizarDocumentoMain()
     formattingCancelled = False
     
     If Not CheckWordVersion() Then
-        Dim versionMsg As String
-        versionMsg = "Versão do Word (" & Application.version & ") não suportada. " & _
-                    "Requisito mínimo: Word 2010 (versão 14.0). " & _
-                    "Atualize o Microsoft Word para utilizar este recurso."
-        MsgBox versionMsg, vbExclamation + vbOKOnly, "Compatibilidade Não Suportada"
+        Application.StatusBar = "Erro: Versão do Word não suportada (mínimo: Word 2010)"
+        LogMessage "Versão do Word " & Application.version & " não suportada. Mínimo: 14.0", LOG_LEVEL_ERROR
         Exit Sub
     End If
     
@@ -124,19 +139,22 @@ Public Sub PadronizarDocumentoMain()
     On Error Resume Next
     Set doc = ActiveDocument
     If doc Is Nothing Then
-        MsgBox "Nenhum documento está aberto ou acessível no momento." & vbCrLf & _
-               "Por favor, abra um documento do Word e tente novamente.", _
-               vbExclamation + vbOKOnly, "Documento Não Disponível"
+        Application.StatusBar = "Erro: Nenhum documento está acessível"
+        LogMessage "Nenhum documento acessível para processamento", LOG_LEVEL_ERROR
         Exit Sub
     End If
     On Error GoTo CriticalErrorHandler
     
     If Not InitializeLogging(doc) Then
+        LogMessage "Falha ao inicializar sistema de logs", LOG_LEVEL_WARNING
     End If
+    
+    LogMessage "Iniciando padronização do documento: " & doc.Name, LOG_LEVEL_INFO
     
     StartUndoGroup "Padronização de Documento - " & doc.Name
     
     If Not SetAppState(False, "Formatando documento...") Then
+        LogMessage "Falha ao configurar estado da aplicação", LOG_LEVEL_WARNING
     End If
     
     If Not PreviousChecking(doc) Then
@@ -145,8 +163,8 @@ Public Sub PadronizarDocumentoMain()
     
     If doc.Path = "" Then
         If Not SaveDocumentFirst(doc) Then
-            MsgBox "Operação cancelada. O documento precisa ser salvo antes da formatação.", _
-                   vbInformation, "Operação Cancelada"
+            Application.StatusBar = "Operação cancelada: documento precisa ser salvo"
+            LogMessage "Operação cancelada - documento não foi salvo", LOG_LEVEL_INFO
             Exit Sub
         End If
     End If
@@ -160,11 +178,13 @@ Public Sub PadronizarDocumentoMain()
     End If
 
     Application.StatusBar = "Documento padronizado com sucesso!"
+    LogMessage "Documento padronizado com sucesso", LOG_LEVEL_INFO
 
 CleanUp:
     SafeCleanup
     
     If Not SetAppState(True, "Documento padronizado com sucesso!") Then
+        LogMessage "Falha ao restaurar estado da aplicação", LOG_LEVEL_WARNING
     End If
     
     SafeFinalizeLogging
@@ -176,12 +196,10 @@ CriticalErrorHandler:
     errDesc = "ERRO CRÍTICO #" & Err.Number & ": " & Err.Description & _
               " em " & Err.Source & " (Linha: " & Erl & ")"
     
-    EmergencyRecovery
+    LogMessage errDesc, LOG_LEVEL_ERROR
+    Application.StatusBar = "Erro crítico durante processamento - verificar logs"
     
-    MsgBox "Ocorreu um erro inesperado durante o processamento." & vbCrLf & vbCrLf & _
-           "Detalhes técnicos: " & errDesc & vbCrLf & vbCrLf & _
-           "O Word tentou recuperar o estado normal da aplicação.", _
-           vbCritical + vbOKOnly, "Erro Inesperado"
+    EmergencyRecovery
 End Sub
 
 '================================================================================
@@ -485,18 +503,15 @@ Private Function PreviousChecking(doc As Document) As Boolean
     On Error GoTo ErrorHandler
 
     If doc Is Nothing Then
-        MsgBox "Erro de sistema: Nenhum documento está acessível para verificação." & vbCrLf & _
-               "Tente fechar e reabrir o documento, então execute novamente.", _
-               vbCritical + vbOKOnly, "Falha de Acesso ao Documento"
+        Application.StatusBar = "Erro: Documento não acessível para verificação"
+        LogMessage "Documento não acessível para verificação", LOG_LEVEL_ERROR
         PreviousChecking = False
         Exit Function
     End If
 
     If doc.Type <> wdTypeDocument Then
-        MsgBox "Documento incompatível detectado." & vbCrLf & _
-               "Este sistema suporta apenas documentos do Word padrão." & vbCrLf & _
-               "Tipo atual: " & doc.Type, _
-               vbExclamation + vbOKOnly, "Tipo de Documento Não Suportado"
+        Application.StatusBar = "Erro: Tipo de documento não suportado (Tipo: " & doc.Type & ")"
+        LogMessage "Tipo de documento não suportado: " & doc.Type, LOG_LEVEL_ERROR
         PreviousChecking = False
         Exit Function
     End If
@@ -504,44 +519,37 @@ Private Function PreviousChecking(doc As Document) As Boolean
     If doc.protectionType <> wdNoProtection Then
         Dim protectionType As String
         protectionType = GetProtectionType(doc)
-        
-        MsgBox "Documento protegido detectado." & vbCrLf & _
-               "Tipo de proteção: " & protectionType & vbCrLf & vbCrLf & _
-               "Para continuar, remova a proteção do documento através de:" & vbCrLf & _
-               "Revisão > Proteger > Restringir Edição > Parar Proteção", _
-               vbExclamation + vbOKOnly, "Documento Protegido"
+        Application.StatusBar = "Erro: Documento protegido (" & protectionType & ")"
+        LogMessage "Documento protegido detectado: " & protectionType, LOG_LEVEL_ERROR
         PreviousChecking = False
         Exit Function
     End If
     
     If doc.ReadOnly Then
-        MsgBox "Documento em modo somente leitura." & vbCrLf & _
-               "Salve uma cópia editável do documento antes de prosseguir." & vbCrLf & vbCrLf & _
-               "Arquivo: " & doc.FullName, _
-               vbExclamation + vbOKOnly, "Documento Somente Leitura"
+        Application.StatusBar = "Erro: Documento em modo somente leitura"
+        LogMessage "Documento em modo somente leitura: " & doc.FullName, LOG_LEVEL_ERROR
         PreviousChecking = False
         Exit Function
     End If
 
     If Not CheckDiskSpace(doc) Then
-        MsgBox "Espaço em disco insuficiente para completar a operação com segurança." & vbCrLf & _
-               "Libere pelo menos 50MB de espaço livre e tente novamente.", _
-               vbExclamation + vbOKOnly, "Espaço em Disco Insuficiente"
+        Application.StatusBar = "Erro: Espaço em disco insuficiente"
+        LogMessage "Espaço em disco insuficiente para operação segura", LOG_LEVEL_ERROR
         PreviousChecking = False
         Exit Function
     End If
 
     If Not ValidateDocumentStructure(doc) Then
+        LogMessage "Estrutura do documento validada com avisos", LOG_LEVEL_WARNING
     End If
 
+    LogMessage "Verificações de segurança concluídas com sucesso", LOG_LEVEL_INFO
     PreviousChecking = True
     Exit Function
 
 ErrorHandler:
-    MsgBox "Erro durante verificações de segurança do documento." & vbCrLf & _
-           "Detalhes: " & Err.Description & vbCrLf & _
-           "Contate o suporte técnico se o problema persistir.", _
-           vbCritical + vbOKOnly, "Erro de Verificação"
+    Application.StatusBar = "Erro durante verificações de segurança"
+    LogMessage "Erro durante verificações: " & Err.Description, LOG_LEVEL_ERROR
     PreviousChecking = False
 End Function
 
@@ -569,14 +577,17 @@ Private Function CheckDiskSpace(doc As Document) As Boolean
     requiredSpace = 50 * 1024 * 1024
     
     If drive.AvailableSpace < requiredSpace Then
+        LogMessage "Espaço insuficiente no disco " & driveLetter & ": " & Format(drive.AvailableSpace / 1024 / 1024, "0.0") & "MB disponível, 50MB necessário", LOG_LEVEL_ERROR
         CheckDiskSpace = False
     Else
+        LogMessage "Espaço em disco suficiente: " & Format(drive.AvailableSpace / 1024 / 1024, "0.0") & "MB disponível", LOG_LEVEL_INFO
         CheckDiskSpace = True
     End If
     
     Exit Function
     
 ErrorHandler:
+    LogMessage "Erro ao verificar espaço em disco: " & Err.Description, LOG_LEVEL_WARNING
     CheckDiskSpace = True
 End Function
 
@@ -587,38 +598,57 @@ Private Function PreviousFormatting(doc As Document) As Boolean
     On Error GoTo ErrorHandler
 
      If Not ApplyPageSetup(doc) Then
+        LogMessage "Falha na configuração de página", LOG_LEVEL_ERROR
         PreviousFormatting = False
         Exit Function
     End If
+    LogMessage "Configuração de página aplicada com sucesso", LOG_LEVEL_INFO
 
     If Not ApplyStdFont(doc) Then
+        LogMessage "Falha na formatação de fontes", LOG_LEVEL_ERROR
         PreviousFormatting = False
         Exit Function
     End If
+    LogMessage "Formatação de fontes aplicada com sucesso", LOG_LEVEL_INFO
     
     If Not ApplyStdParagraphs(doc) Then
+        LogMessage "Falha na formatação de parágrafos", LOG_LEVEL_ERROR
         PreviousFormatting = False
         Exit Function
     End If
+    LogMessage "Formatação de parágrafos aplicada com sucesso", LOG_LEVEL_INFO
     
     If Not EnableHyphenation(doc) Then
+        LogMessage "Falha ao ativar hifenização", LOG_LEVEL_WARNING
+    Else
+        LogMessage "Hifenização ativada com sucesso", LOG_LEVEL_INFO
     End If
     
     If Not RemoveWatermark(doc) Then
+        LogMessage "Falha na remoção de marcas d'água", LOG_LEVEL_WARNING
+    Else
+        LogMessage "Marcas d'água removidas com sucesso", LOG_LEVEL_INFO
     End If
     
     If Not InsertHeaderStamp(doc) Then
+        LogMessage "Falha na inserção do cabeçalho", LOG_LEVEL_WARNING
+    Else
+        LogMessage "Cabeçalho inserido com sucesso", LOG_LEVEL_INFO
     End If
     
     If Not InsertFooterStamp(doc) Then
+        LogMessage "Falha na inserção do rodapé", LOG_LEVEL_ERROR
         PreviousFormatting = False
         Exit Function
     End If
+    LogMessage "Rodapé inserido com sucesso", LOG_LEVEL_INFO
     
+    LogMessage "Formatação completa aplicada com sucesso", LOG_LEVEL_INFO
     PreviousFormatting = True
     Exit Function
 
 ErrorHandler:
+    LogMessage "Erro durante formatação: " & Err.Description, LOG_LEVEL_ERROR
     PreviousFormatting = False
 End Function
 
@@ -639,10 +669,12 @@ Private Function ApplyPageSetup(doc As Document) As Boolean
         .Orientation = wdOrientPortrait
     End With
     
+    LogMessage "Configuração de página aplicada: margens e orientação definidas", LOG_LEVEL_INFO
     ApplyPageSetup = True
     Exit Function
     
 ErrorHandler:
+    LogMessage "Erro na configuração de página: " & Err.Description, LOG_LEVEL_ERROR
     ApplyPageSetup = False
 End Function
 
@@ -679,12 +711,13 @@ Private Function ApplyStdFont(doc As Document) As Boolean
         End If
     Next i
     
+    LogMessage "Formatação de fonte aplicada: " & formattedCount & " parágrafos formatados, " & skippedCount & " ignorados (imagens)", LOG_LEVEL_INFO
     ApplyStdFont = True
     Exit Function
 
 ErrorHandler:
+    LogMessage "Erro na formatação de fonte: " & Err.Description, LOG_LEVEL_ERROR
     ApplyStdFont = False
-
 End Function
 
 '================================================================================
@@ -755,10 +788,12 @@ Private Function ApplyStdParagraphs(doc As Document) As Boolean
         End If
     Next i
     
+    LogMessage "Formatação de parágrafos aplicada: " & formattedCount & " parágrafos formatados, " & skippedCount & " ignorados (imagens)", LOG_LEVEL_INFO
     ApplyStdParagraphs = True
     Exit Function
 
 ErrorHandler:
+    LogMessage "Erro na formatação de parágrafos: " & Err.Description, LOG_LEVEL_ERROR
     ApplyStdParagraphs = False
 End Function
 
@@ -772,14 +807,17 @@ Private Function EnableHyphenation(doc As Document) As Boolean
         doc.AutoHyphenation = True
         doc.HyphenationZone = CentimetersToPoints(0.63)
         doc.HyphenateCaps = True
+        LogMessage "Hifenização ativada com configurações padrão", LOG_LEVEL_INFO
         EnableHyphenation = True
     Else
+        LogMessage "Hifenização já estava ativa", LOG_LEVEL_INFO
         EnableHyphenation = True
     End If
     
     Exit Function
     
 ErrorHandler:
+    LogMessage "Erro ao ativar hifenização: " & Err.Description, LOG_LEVEL_ERROR
     EnableHyphenation = False
 End Function
 
@@ -827,10 +865,17 @@ Private Function RemoveWatermark(doc As Document) As Boolean
         Next header
     Next sec
 
+    If removedCount > 0 Then
+        LogMessage "Marcas d'água removidas: " & removedCount & " itens", LOG_LEVEL_INFO
+    Else
+        LogMessage "Nenhuma marca d'água encontrada para remoção", LOG_LEVEL_INFO
+    End If
+    
     RemoveWatermark = True
     Exit Function
     
 ErrorHandler:
+    LogMessage "Erro ao remover marcas d'água: " & Err.Description, LOG_LEVEL_ERROR
     RemoveWatermark = False
 End Function
 
@@ -853,14 +898,17 @@ Private Function InsertHeaderStamp(doc As Document) As Boolean
     username = GetSafeUserName()
     imgFile = "C:\Users\" & username & HEADER_IMAGE_RELATIVE_PATH
 
+    ' Busca inteligente da imagem em múltiplos locais
     If Dir(imgFile) = "" Then
+        ' Tenta localização alternativa no perfil do usuário
         imgFile = Environ("USERPROFILE") & HEADER_IMAGE_RELATIVE_PATH
         If Dir(imgFile) = "" Then
+            ' Tenta localização de rede corporativa
             imgFile = "\\strqnapmain\Dir. Legislativa\Christian" & HEADER_IMAGE_RELATIVE_PATH
             If Dir(imgFile) = "" Then
-                MsgBox "Imagem de cabeçalho não encontrada nos locais esperados." & vbCrLf & _
-                       "Verifique se o arquivo existe em: " & HEADER_IMAGE_RELATIVE_PATH, _
-                       vbExclamation, "Imagem Não Encontrada"
+                ' Registra erro e tenta continuar sem a imagem
+                Application.StatusBar = "Aviso: Imagem de cabeçalho não encontrada"
+                LogMessage "Imagem de cabeçalho não encontrada em nenhum local: " & HEADER_IMAGE_RELATIVE_PATH, LOG_LEVEL_WARNING
                 InsertHeaderStamp = False
                 Exit Function
             End If
@@ -882,6 +930,7 @@ Private Function InsertHeaderStamp(doc As Document) As Boolean
                 SaveWithDocument:=msoTrue)
             
             If shp Is Nothing Then
+                LogMessage "Falha ao inserir imagem no cabeçalho da seção " & sectionsProcessed + 1, LOG_LEVEL_WARNING
             Else
                 With shp
                     .LockAspectRatio = msoTrue
@@ -902,14 +951,17 @@ Private Function InsertHeaderStamp(doc As Document) As Boolean
     Next sec
 
     If imgFound Then
+        LogMessage "Cabeçalho inserido em " & sectionsProcessed & " seções. Imagem: " & imgFile, LOG_LEVEL_INFO
         InsertHeaderStamp = True
     Else
+        LogMessage "Nenhum cabeçalho foi inserido", LOG_LEVEL_WARNING
         InsertHeaderStamp = False
     End If
 
     Exit Function
 
 ErrorHandler:
+    LogMessage "Erro ao inserir cabeçalho: " & Err.Description, LOG_LEVEL_ERROR
     InsertHeaderStamp = False
 End Function
 
@@ -957,24 +1009,14 @@ Private Function InsertFooterStamp(doc As Document) As Boolean
         End If
     Next sec
 
+    LogMessage "Rodapé inserido em " & sectionsProcessed & " seções com numeração de páginas", LOG_LEVEL_INFO
     InsertFooterStamp = True
     Exit Function
 
 ErrorHandler:
+    LogMessage "Erro ao inserir rodapé: " & Err.Description, LOG_LEVEL_ERROR
     InsertFooterStamp = False
 End Function
-
-'================================================================================
-' ERROR HANDLER - #STABLE
-'================================================================================
-Private Sub HandleError(procedureName As String)
-    Dim errMsg As String
-    errMsg = "Erro na sub-rotina: " & procedureName & vbCrLf & _
-             "Erro #" & Err.Number & ": " & Err.Description & vbCrLf & _
-             "Fonte: " & Err.Source
-    Application.StatusBar = "Erro: " & Err.Description
-    Err.Clear
-End Sub
 
 '================================================================================
 ' UTILITY: CM TO POINTS - #STABLE
@@ -1038,29 +1080,40 @@ Private Function ValidateDocumentStructure(doc As Document) As Boolean
     valid = True
     
     If doc.Range.End = 0 Then
+        LogMessage "Documento vazio detectado", LOG_LEVEL_WARNING
         valid = False
     End If
     
     If doc.Sections.Count = 0 Then
+        LogMessage "Documento sem seções detectado", LOG_LEVEL_WARNING
         valid = False
+    End If
+    
+    If valid Then
+        LogMessage "Estrutura do documento validada: " & doc.Paragraphs.Count & " parágrafos, " & doc.Sections.Count & " seções", LOG_LEVEL_INFO
+    Else
+        LogMessage "Problemas na estrutura do documento detectados", LOG_LEVEL_WARNING
     End If
     
     ValidateDocumentStructure = valid
     Exit Function
     
 ErrorHandler:
+    LogMessage "Erro na validação da estrutura: " & Err.Description, LOG_LEVEL_ERROR
     ValidateDocumentStructure = False
 End Function
 
 '================================================================================
-' ADDITIONAL UTILITY: RESTORE DEFAULT SETTINGS - #STABLE
+' UTILITY: RESTORE DEFAULT SETTINGS - #STABLE  
 '================================================================================
 Private Sub RestoreDefaultSettings()
     On Error Resume Next
+    LogMessage "Restaurando configurações padrão da aplicação", LOG_LEVEL_INFO
     SetAppState True
     Application.ScreenUpdating = True
     Application.DisplayAlerts = wdAlertsAll
     Application.StatusBar = ""
+    LogMessage "Configurações padrão restauradas", LOG_LEVEL_INFO
 End Sub
 
 
@@ -1071,16 +1124,25 @@ End Sub
 Private Function SaveDocumentFirst(doc As Document) As Boolean
     On Error GoTo ErrorHandler
 
+    Application.StatusBar = "Aguardando salvamento do documento..."
+    LogMessage "Iniciando salvamento obrigatório do documento", LOG_LEVEL_INFO
+    
     Dim saveDialog As Object
     Set saveDialog = Application.Dialogs(wdDialogFileSaveAs)
 
     If saveDialog.Show <> -1 Then
+        LogMessage "Operação de salvamento cancelada pelo usuário", LOG_LEVEL_INFO
+        Application.StatusBar = "Salvamento cancelado pelo usuário"
         SaveDocumentFirst = False
         Exit Function
     End If
 
+    ' Aguarda confirmação do salvamento com timeout de segurança
     Dim waitCount As Integer
-    For waitCount = 1 To 10
+    Dim maxWait As Integer
+    maxWait = 10
+    
+    For waitCount = 1 To maxWait
         DoEvents
         If doc.Path <> "" Then Exit For
         Dim startTime As Double
@@ -1088,17 +1150,77 @@ Private Function SaveDocumentFirst(doc As Document) As Boolean
         Do While Timer < startTime + 1
             DoEvents
         Loop
+        Application.StatusBar = "Aguardando salvamento... (" & waitCount & "/" & maxWait & ")"
     Next waitCount
 
     If doc.Path = "" Then
+        LogMessage "Falha ao salvar documento após " & maxWait & " tentativas", LOG_LEVEL_ERROR
+        Application.StatusBar = "Falha no salvamento - operação cancelada"
         SaveDocumentFirst = False
     Else
+        LogMessage "Documento salvo com sucesso em: " & doc.Path, LOG_LEVEL_INFO
+        Application.StatusBar = "Documento salvo com sucesso"
         SaveDocumentFirst = True
     End If
 
     Exit Function
 
 ErrorHandler:
+    LogMessage "Erro durante salvamento: " & Err.Description & " (Erro #" & Err.Number & ")", LOG_LEVEL_ERROR
+    Application.StatusBar = "Erro durante salvamento"
     SaveDocumentFirst = False
 End Function
+
+'================================================================================
+' SUBROTINA PÚBLICA: ABRIR PASTA DE LOGS - #NEW
+'================================================================================
+Public Sub AbrirPastaLogs()
+    On Error GoTo ErrorHandler
+    
+    Dim doc As Document
+    Dim logsFolder As String
+    Dim defaultLogsFolder As String
+    
+    ' Tenta obter documento ativo
+    Set doc = Nothing
+    On Error Resume Next
+    Set doc = ActiveDocument
+    On Error GoTo ErrorHandler
+    
+    ' Define pasta de logs baseada no documento atual ou temp
+    If Not doc Is Nothing And doc.Path <> "" Then
+        logsFolder = doc.Path
+    Else
+        logsFolder = Environ("TEMP")
+    End If
+    
+    ' Verifica se a pasta existe
+    If Dir(logsFolder, vbDirectory) = "" Then
+        logsFolder = Environ("TEMP")
+    End If
+    
+    ' Abre a pasta no Windows Explorer
+    Shell "explorer.exe """ & logsFolder & """", vbNormalFocus
+    
+    Application.StatusBar = "Pasta de logs aberta: " & logsFolder
+    
+    ' Log da operação se sistema de log estiver ativo
+    If loggingEnabled Then
+        LogMessage "Pasta de logs aberta pelo usuário: " & logsFolder, LOG_LEVEL_INFO
+    End If
+    
+    Exit Sub
+    
+ErrorHandler:
+    Application.StatusBar = "Erro ao abrir pasta de logs"
+    
+    ' Fallback: tenta abrir pasta temporária
+    On Error Resume Next
+    Shell "explorer.exe """ & Environ("TEMP") & """", vbNormalFocus
+    If Err.Number = 0 Then
+        Application.StatusBar = "Pasta temporária aberta como alternativa"
+    Else
+        Application.StatusBar = "Não foi possível abrir pasta de logs"
+    End If
+End Sub
 
