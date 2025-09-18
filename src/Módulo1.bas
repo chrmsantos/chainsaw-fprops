@@ -597,13 +597,37 @@ End Function
 Private Function PreviousFormatting(doc As Document) As Boolean
     On Error GoTo ErrorHandler
 
-     If Not ApplyPageSetup(doc) Then
+    ' Formatações básicas de página e estrutura
+    If Not ApplyPageSetup(doc) Then
         LogMessage "Falha na configuração de página", LOG_LEVEL_ERROR
         PreviousFormatting = False
         Exit Function
     End If
     LogMessage "Configuração de página aplicada com sucesso", LOG_LEVEL_INFO
 
+    ' Limpeza inicial do documento
+    If Not CleanDocumentStructure(doc) Then
+        LogMessage "Falha na limpeza da estrutura do documento", LOG_LEVEL_WARNING
+    Else
+        LogMessage "Estrutura do documento limpa com sucesso", LOG_LEVEL_INFO
+    End If
+
+    ' Validação do tipo de proposição
+    If Not ValidatePropositionType(doc) Then
+        LogMessage "Validação de tipo de proposição cancelada pelo usuário", LOG_LEVEL_INFO
+        Application.StatusBar = "Operação cancelada - tipo de documento não confirmado"
+        PreviousFormatting = False
+        Exit Function
+    End If
+
+    ' Formatação do título e substituições de texto
+    If Not FormatDocumentTitle(doc) Then
+        LogMessage "Falha na formatação do título", LOG_LEVEL_WARNING
+    Else
+        LogMessage "Título formatado com sucesso", LOG_LEVEL_INFO
+    End If
+
+    ' Formatações de fonte e parágrafos
     If Not ApplyStdFont(doc) Then
         LogMessage "Falha na formatação de fontes", LOG_LEVEL_ERROR
         PreviousFormatting = False
@@ -617,7 +641,22 @@ Private Function PreviousFormatting(doc As Document) As Boolean
         Exit Function
     End If
     LogMessage "Formatação de parágrafos aplicada com sucesso", LOG_LEVEL_INFO
+
+    ' Formatações específicas de conteúdo
+    If Not FormatConsiderandoParagraphs(doc) Then
+        LogMessage "Falha na formatação de parágrafos 'considerando'", LOG_LEVEL_WARNING
+    Else
+        LogMessage "Parágrafos 'considerando' formatados com sucesso", LOG_LEVEL_INFO
+    End If
+
+    ' Substituições de texto específicas
+    If Not ApplyTextReplacements(doc) Then
+        LogMessage "Falha nas substituições de texto", LOG_LEVEL_WARNING
+    Else
+        LogMessage "Substituições de texto aplicadas com sucesso", LOG_LEVEL_INFO
+    End If
     
+    ' Formatações complementares
     If Not EnableHyphenation(doc) Then
         LogMessage "Falha ao ativar hifenização", LOG_LEVEL_WARNING
     Else
@@ -689,6 +728,7 @@ Private Function ApplyStdFont(doc As Document) As Boolean
     Dim i As Long
     Dim formattedCount As Long
     Dim skippedCount As Long
+    Dim underlineRemovedCount As Long
 
     For i = doc.Paragraphs.Count To 1 Step -1
         Set para = doc.Paragraphs(i)
@@ -703,7 +743,13 @@ Private Function ApplyStdFont(doc As Document) As Boolean
             With para.Range.Font
                 .Name = STANDARD_FONT
                 .Size = STANDARD_FONT_SIZE
-                .Underline = wdUnderlineNone
+                
+                ' Remove sublinhado de todo o documento (Funcionalidade 1)
+                If .Underline <> wdUnderlineNone Then
+                    .Underline = wdUnderlineNone
+                    underlineRemovedCount = underlineRemovedCount + 1
+                End If
+                
                 .Color = wdColorAutomatic
             End With
             
@@ -711,7 +757,7 @@ Private Function ApplyStdFont(doc As Document) As Boolean
         End If
     Next i
     
-    LogMessage "Formatação de fonte aplicada: " & formattedCount & " parágrafos formatados, " & skippedCount & " ignorados (imagens)", LOG_LEVEL_INFO
+    LogMessage "Formatação de fonte aplicada: " & formattedCount & " parágrafos formatados, " & skippedCount & " ignorados (imagens), " & underlineRemovedCount & " sublinhados removidos", LOG_LEVEL_INFO
     ApplyStdFont = True
     Exit Function
 
@@ -1172,6 +1218,378 @@ ErrorHandler:
 End Function
 
 '================================================================================
+' CLEAN DOCUMENT STRUCTURE - FUNCIONALIDADES 2, 6, 7 - #NEW
+'================================================================================
+Private Function CleanDocumentStructure(doc As Document) As Boolean
+    On Error GoTo ErrorHandler
+    
+    Dim para As Paragraph
+    Dim i As Long
+    Dim firstTextParaIndex As Long
+    Dim lastContentParaIndex As Long
+    Dim emptyLinesRemoved As Long
+    Dim leadingSpacesRemoved As Long
+    
+    ' Funcionalidade 2: Remove linhas em branco acima do título (primeira linha com texto)
+    firstTextParaIndex = -1
+    For i = 1 To doc.Paragraphs.Count
+        Set para = doc.Paragraphs(i)
+        If Trim(Replace(Replace(para.Range.Text, vbCr, ""), vbLf, "")) <> "" Then
+            firstTextParaIndex = i
+            Exit For
+        End If
+    Next i
+    
+    If firstTextParaIndex > 1 Then
+        For i = firstTextParaIndex - 1 To 1 Step -1
+            Set para = doc.Paragraphs(i)
+            If Trim(Replace(Replace(para.Range.Text, vbCr, ""), vbLf, "")) = "" Then
+                para.Range.Delete
+                emptyLinesRemoved = emptyLinesRemoved + 1
+            End If
+        Next i
+    End If
+    
+    ' Funcionalidade 6: Remove linhas em branco no final do documento
+    lastContentParaIndex = -1
+    For i = doc.Paragraphs.Count To 1 Step -1
+        Set para = doc.Paragraphs(i)
+        Dim paraText As String
+        paraText = Trim(Replace(Replace(para.Range.Text, vbCr, ""), vbLf, ""))
+        
+        ' Verifica se há conteúdo (texto ou imagens)
+        If paraText <> "" Or para.Range.InlineShapes.Count > 0 Then
+            lastContentParaIndex = i
+            Exit For
+        End If
+    Next i
+    
+    If lastContentParaIndex > 0 And lastContentParaIndex < doc.Paragraphs.Count Then
+        For i = doc.Paragraphs.Count To lastContentParaIndex + 1 Step -1
+            Set para = doc.Paragraphs(i)
+            If Trim(Replace(Replace(para.Range.Text, vbCr, ""), vbLf, "")) = "" And para.Range.InlineShapes.Count = 0 Then
+                para.Range.Delete
+                emptyLinesRemoved = emptyLinesRemoved + 1
+            End If
+        Next i
+    End If
+    
+    ' Funcionalidade 7: Remove espaços e tabs no início de parágrafos
+    For i = 1 To doc.Paragraphs.Count
+        Set para = doc.Paragraphs(i)
+        Dim originalText As String
+        Dim cleanText As String
+        
+        originalText = para.Range.Text
+        ' Remove espaços e tabs do início, preservando quebras de linha
+        cleanText = originalText
+        
+        ' Remove espaços e tabs no início
+        Do While Left(cleanText, 1) = " " Or Left(cleanText, 1) = vbTab
+            cleanText = Mid(cleanText, 2)
+            leadingSpacesRemoved = leadingSpacesRemoved + 1
+        Loop
+        
+        If cleanText <> originalText Then
+            para.Range.Text = cleanText
+        End If
+    Next i
+    
+    LogMessage "Estrutura limpa: " & emptyLinesRemoved & " linhas vazias removidas, " & leadingSpacesRemoved & " espaços iniciais removidos", LOG_LEVEL_INFO
+    CleanDocumentStructure = True
+    Exit Function
+
+ErrorHandler:
+    LogMessage "Erro na limpeza da estrutura: " & Err.Description, LOG_LEVEL_ERROR
+    CleanDocumentStructure = False
+End Function
+
+'================================================================================
+' VALIDATE PROPOSITION TYPE - FUNCIONALIDADE 3 - #NEW
+'================================================================================
+Private Function ValidatePropositionType(doc As Document) As Boolean
+    On Error GoTo ErrorHandler
+    
+    Dim firstPara As Paragraph
+    Dim firstWord As String
+    Dim paraText As String
+    Dim i As Long
+    Dim userResponse As VbMsgBoxResult
+    
+    ' Encontra o primeiro parágrafo com texto
+    For i = 1 To doc.Paragraphs.Count
+        Set firstPara = doc.Paragraphs(i)
+        paraText = Trim(Replace(Replace(firstPara.Range.Text, vbCr, ""), vbLf, ""))
+        If paraText <> "" Then
+            Exit For
+        End If
+    Next i
+    
+    If paraText = "" Then
+        LogMessage "Documento não possui texto para validação", LOG_LEVEL_WARNING
+        ValidatePropositionType = True
+        Exit Function
+    End If
+    
+    ' Extrai a primeira palavra
+    Dim words() As String
+    words = Split(paraText, " ")
+    If UBound(words) >= 0 Then
+        firstWord = LCase(Trim(words(0)))
+    End If
+    
+    ' Verifica se é uma das proposituras válidas
+    If firstWord = "indicação" Or firstWord = "requerimento" Or firstWord = "moção" Then
+        LogMessage "Tipo de proposição validado: " & firstWord, LOG_LEVEL_INFO
+        ValidatePropositionType = True
+    Else
+        ' Informa sobre documento não-padrão e continua automaticamente
+        LogMessage "Primeira palavra não reconhecida como proposição padrão: " & firstWord & " - continuando processamento", LOG_LEVEL_WARNING
+        Application.StatusBar = "Aviso: Documento não é Indicação/Requerimento/Moção - processando mesmo assim"
+        
+        ' Pequena pausa para o usuário visualizar a mensagem
+        Dim startTime As Double
+        startTime = Timer
+        Do While Timer < startTime + 2  ' 2 segundos
+            DoEvents
+        Loop
+        
+        LogMessage "Processamento de documento não-padrão autorizado automaticamente: " & firstWord, LOG_LEVEL_INFO
+        ValidatePropositionType = True
+    End If
+    
+    Exit Function
+
+ErrorHandler:
+    LogMessage "Erro na validação do tipo de proposição: " & Err.Description, LOG_LEVEL_ERROR
+    ValidatePropositionType = False
+End Function
+
+'================================================================================
+' FORMAT DOCUMENT TITLE - FUNCIONALIDADES 4 e 5 - #NEW
+'================================================================================
+Private Function FormatDocumentTitle(doc As Document) As Boolean
+    On Error GoTo ErrorHandler
+    
+    Dim firstPara As Paragraph
+    Dim paraText As String
+    Dim words() As String
+    Dim i As Long
+    Dim newText As String
+    
+    ' Encontra o primeiro parágrafo com texto
+    For i = 1 To doc.Paragraphs.Count
+        Set firstPara = doc.Paragraphs(i)
+        paraText = Trim(Replace(Replace(firstPara.Range.Text, vbCr, ""), vbLf, ""))
+        If paraText <> "" Then
+            Exit For
+        End If
+    Next i
+    
+    If paraText = "" Then
+        LogMessage "Nenhum texto encontrado para formatação do título", LOG_LEVEL_WARNING
+        FormatDocumentTitle = True
+        Exit Function
+    End If
+    
+    ' Funcionalidade 4: Substitui a última palavra por $NUMERO$/$ANO$
+    words = Split(paraText, " ")
+    If UBound(words) >= 0 Then
+        ' Reconstrói o texto substituindo a última palavra
+        newText = ""
+        For i = 0 To UBound(words) - 1
+            If i > 0 Then newText = newText & " "
+            newText = newText & words(i)
+        Next i
+        
+        ' Adiciona $NUMERO$/$ANO$ no lugar da última palavra
+        If UBound(words) >= 0 Then
+            If newText <> "" Then newText = newText & " "
+            newText = newText & "$NUMERO$/$ANO$"
+        End If
+        
+        ' Funcionalidade 5: Coloca em caixa alta, negrito e sublinhado
+        firstPara.Range.Text = UCase(newText) & vbCrLf
+        
+        With firstPara.Range.Font
+            .Bold = True
+            .Underline = wdUnderlineSingle
+        End With
+        
+        LogMessage "Título formatado: " & newText, LOG_LEVEL_INFO
+    End If
+    
+    FormatDocumentTitle = True
+    Exit Function
+
+ErrorHandler:
+    LogMessage "Erro na formatação do título: " & Err.Description, LOG_LEVEL_ERROR
+    FormatDocumentTitle = False
+End Function
+
+'================================================================================
+' FORMAT CONSIDERANDO PARAGRAPHS - FUNCIONALIDADE 8 - #NEW
+'================================================================================
+Private Function FormatConsiderandoParagraphs(doc As Document) As Boolean
+    On Error GoTo ErrorHandler
+    
+    Dim para As Paragraph
+    Dim paraText As String
+    Dim i As Long
+    Dim formattedCount As Long
+    Dim rng As Range
+    Dim considerandoPos As Long
+    Dim quePos As Long
+    
+    For i = 1 To doc.Paragraphs.Count
+        Set para = doc.Paragraphs(i)
+        paraText = Trim(para.Range.Text)
+        
+        ' Verifica se o parágrafo inicia com "considerando" (case insensitive)
+        If LCase(Left(Trim(Replace(Replace(paraText, vbCr, ""), vbLf, "")), 12)) = "considerando" Then
+            ' Formata "considerando" em negrito e caixa alta
+            considerandoPos = InStr(1, paraText, "considerando", vbTextCompare)
+            If considerandoPos > 0 Then
+                Set rng = para.Range
+                rng.Start = rng.Start + considerandoPos - 1
+                rng.End = rng.Start + 12 ' Tamanho de "considerando"
+                
+                ' Substitui por versão em caixa alta
+                rng.Text = "CONSIDERANDO"
+                rng.Font.Bold = True
+                
+                ' Funcionalidade 8.1: Verifica se há "que" em negrito após "considerando"
+                ' e o formata em caixa baixa e fonte normal
+                Set rng = para.Range
+                quePos = InStr(considerandoPos + 12, paraText, "que", vbTextCompare)
+                If quePos > 0 Then
+                    ' Verifica se a palavra "que" está em negrito
+                    Set rng = para.Range
+                    rng.Start = rng.Start + quePos - 1
+                    rng.End = rng.Start + 3 ' Tamanho de "que"
+                    
+                    If rng.Font.Bold = True Then
+                        rng.Text = "que"
+                        rng.Font.Bold = False
+                    End If
+                End If
+                
+                formattedCount = formattedCount + 1
+                LogMessage "Parágrafo 'considerando' formatado: parágrafo " & i, LOG_LEVEL_INFO
+            End If
+        End If
+    Next i
+    
+    LogMessage "Formatação de 'considerando' concluída: " & formattedCount & " parágrafos formatados", LOG_LEVEL_INFO
+    FormatConsiderandoParagraphs = True
+    Exit Function
+
+ErrorHandler:
+    LogMessage "Erro na formatação de parágrafos 'considerando': " & Err.Description, LOG_LEVEL_ERROR
+    FormatConsiderandoParagraphs = False
+End Function
+
+'================================================================================
+' APPLY TEXT REPLACEMENTS - FUNCIONALIDADES 10 e 11 - #NEW
+'================================================================================
+Private Function ApplyTextReplacements(doc As Document) As Boolean
+    On Error GoTo ErrorHandler
+    
+    Dim rng As Range
+    Dim replacementCount As Long
+    
+    Set rng = doc.Range
+    
+    ' Funcionalidade 10: Substitui variantes de "d'Oeste"
+    Dim dOesteVariants() As String
+    Dim i As Long
+    
+    ' Define as variantes possíveis dos 3 primeiros caracteres de "d'Oeste"
+    ReDim dOesteVariants(0 To 15)
+    dOesteVariants(0) = "d'O"   ' Original
+    dOesteVariants(1) = "d´O"   ' Acento agudo
+    dOesteVariants(2) = "d`O"   ' Acento grave  
+    dOesteVariants(3) = "d" & Chr(8220) & "O"   ' Aspas curvas esquerda
+    dOesteVariants(4) = "d'o"   ' Minúscula
+    dOesteVariants(5) = "d´o"
+    dOesteVariants(6) = "d`o"
+    dOesteVariants(7) = "d" & Chr(8220) & "o"
+    dOesteVariants(8) = "D'O"   ' Maiúscula no D
+    dOesteVariants(9) = "D´O"
+    dOesteVariants(10) = "D`O"
+    dOesteVariants(11) = "D" & Chr(8220) & "O"
+    dOesteVariants(12) = "D'o"
+    dOesteVariants(13) = "D´o"
+    dOesteVariants(14) = "D`o"
+    dOesteVariants(15) = "D" & Chr(8220) & "o"
+    
+    For i = 0 To UBound(dOesteVariants)
+        With rng.Find
+            .ClearFormatting
+            .Text = dOesteVariants(i) & "este"
+            .Replacement.Text = "d'Oeste"
+            .Forward = True
+            .Wrap = wdFindContinue
+            .Format = False
+            .MatchCase = False
+            .MatchWholeWord = False
+            .MatchWildcards = False
+            .MatchSoundsLike = False
+            .MatchAllWordForms = False
+            
+            Do While .Execute(Replace:=True)
+                replacementCount = replacementCount + 1
+            Loop
+        End With
+    Next i
+    
+    ' Funcionalidade 11: Substitui variantes de "- Vereador -"
+    Set rng = doc.Range
+    Dim vereadorVariants() As String
+    ReDim vereadorVariants(0 To 7)
+    
+    ' Variantes dos caracteres inicial e final
+    vereadorVariants(0) = "- Vereador -"    ' Original
+    vereadorVariants(1) = "– Vereador –"    ' Travessão
+    vereadorVariants(2) = "— Vereador —"    ' Em dash
+    vereadorVariants(3) = "- vereador -"    ' Minúscula
+    vereadorVariants(4) = "– vereador –"
+    vereadorVariants(5) = "— vereador —"
+    vereadorVariants(6) = "-Vereador-"      ' Sem espaços
+    vereadorVariants(7) = "–Vereador–"
+    
+    For i = 0 To UBound(vereadorVariants)
+        If vereadorVariants(i) <> "- Vereador -" Then
+            With rng.Find
+                .ClearFormatting
+                .Text = vereadorVariants(i)
+                .Replacement.Text = "- Vereador -"
+                .Forward = True
+                .Wrap = wdFindContinue
+                .Format = False
+                .MatchCase = False
+                .MatchWholeWord = False
+                .MatchWildcards = False
+                .MatchSoundsLike = False
+                .MatchAllWordForms = False
+                
+                Do While .Execute(Replace:=True)
+                    replacementCount = replacementCount + 1
+                Loop
+            End With
+        End If
+    Next i
+    
+    LogMessage "Substituições de texto aplicadas: " & replacementCount & " substituições realizadas", LOG_LEVEL_INFO
+    ApplyTextReplacements = True
+    Exit Function
+
+ErrorHandler:
+    LogMessage "Erro nas substituições de texto: " & Err.Description, LOG_LEVEL_ERROR
+    ApplyTextReplacements = False
+End Function
+
+'================================================================================
 ' SUBROTINA PÚBLICA: ABRIR PASTA DE LOGS - #NEW
 '================================================================================
 Public Sub AbrirPastaLogs()
@@ -1221,6 +1639,55 @@ ErrorHandler:
         Application.StatusBar = "Pasta temporária aberta como alternativa"
     Else
         Application.StatusBar = "Não foi possível abrir pasta de logs"
+    End If
+End Sub
+
+'================================================================================
+' SUBROTINA PÚBLICA: ABRIR REPOSITÓRIO GITHUB - FUNCIONALIDADE 9 - #NEW
+'================================================================================
+Public Sub AbrirRepositorioGitHub()
+    On Error GoTo ErrorHandler
+    
+    Dim repoURL As String
+    Dim shellResult As Long
+    
+    ' URL do repositório do projeto
+    repoURL = "https://github.com/chrmsantos/chainsaw-fprops"
+    
+    ' Abre o link no navegador padrão
+    shellResult = Shell("rundll32.exe url.dll,FileProtocolHandler " & repoURL, vbNormalFocus)
+    
+    If shellResult > 0 Then
+        Application.StatusBar = "Repositório GitHub aberto no navegador"
+        
+        ' Log da operação se sistema de log estiver ativo
+        If loggingEnabled Then
+            LogMessage "Repositório GitHub aberto pelo usuário: " & repoURL, LOG_LEVEL_INFO
+        End If
+    Else
+        GoTo ErrorHandler
+    End If
+    
+    Exit Sub
+    
+ErrorHandler:
+    Application.StatusBar = "Erro ao abrir repositório GitHub"
+    
+    ' Log do erro se sistema de log estiver ativo
+    If loggingEnabled Then
+        LogMessage "Erro ao abrir repositório GitHub: " & Err.Description, LOG_LEVEL_ERROR
+    End If
+    
+    ' Fallback: tenta copiar URL para a área de transferência
+    On Error Resume Next
+    Dim dataObj As Object
+    Set dataObj = CreateObject("htmlfile").parentWindow.clipboardData
+    dataObj.setData "text", repoURL
+    
+    If Err.Number = 0 Then
+        Application.StatusBar = "URL copiada para área de transferência: " & repoURL
+    Else
+        Application.StatusBar = "Não foi possível abrir o repositório. URL: " & repoURL
     End If
 End Sub
 
