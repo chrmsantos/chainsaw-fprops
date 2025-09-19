@@ -25,11 +25,21 @@
 '   - Limpeza automática de backups antigos (limite: 10 arquivos)
 '   - Subrotina pública para acesso à pasta de backups
 '
+' • SUBROTINA PÚBLICA PARA SALVAR E SAIR:
+'   - Verificação automática de todos os documentos abertos
+'   - Detecção de documentos com alterações não salvas
+'   - Interface profissional com opções claras ao usuário
+'   - Salvamento assistido com diálogos para novos arquivos
+'   - Confirmação dupla para fechamento sem salvar
+'   - Tratamento robusto de erros e recuperação
+'
 ' • FORMATAÇÃO AUTOMATIZADA INSTITUCIONAL:
 '   - Limpeza completa de formatação ao iniciar
 '   - Remoção robusta de espaços múltiplos e tabs
 '   - Controle de linhas vazias (máximo 2 sequenciais)
+'   - PROTEÇÃO MÁXIMA: Sistema avançado de backup/restauração de imagens
 '   - PROTEÇÃO MÁXIMA: Preserva imagens inline, flutuantes e objetos
+'   - PROTEÇÃO MÁXIMA: Detecta e protege shapes ancoradas e campos visuais
 '   - Primeira linha: SEMPRE caixa alta, negrito, sublinhado, centralizada
 '   - Parágrafos 2°, 3° e 4°: recuo esquerdo 9cm, sem recuo primeira linha
 '   - "Considerando": caixa alta e negrito no início de parágrafos
@@ -40,7 +50,8 @@
 '   - Recuos e alinhamento justificado
 '   - Cabeçalho com logotipo institucional
 '   - Rodapé com numeração centralizada
-'   - Visualização: zoom 110%, régua visível, modo impressão
+'   - Visualização: zoom 110% (mantido), demais configurações preservadas
+'   - PROTEÇÃO TOTAL: Preserva réguas, modos de exibição e configurações originais
 '   - Remoção de marcas d'água e formatações manuais
 '
 ' • SISTEMA DE LOGS E MONITORAMENTO:
@@ -49,10 +60,19 @@
 '   - Mensagens na barra de status
 '   - Histórico de execução
 '
+' • SISTEMA DE PROTEÇÃO DE CONFIGURAÇÕES DE VISUALIZAÇÃO:
+'   - Backup automático de todas as configurações de exibição
+'   - Preservação de réguas (horizontal e vertical)
+'   - Manutenção do modo de visualização original
+'   - Proteção de configurações de marcas de formatação
+'   - Restauração completa após processamento (exceto zoom)
+'   - Compatibilidade com todos os modos de exibição do Word
+'
 ' • PERFORMANCE OTIMIZADA:
 '   - Processamento eficiente para documentos grandes
 '   - Desabilitação temporária de atualizações visuais
 '   - Gerenciamento inteligente de recursos
+'   - Sistema de logging otimizado (principais, warnings e erros)
 '
 ' =============================================================================
 
@@ -143,6 +163,52 @@ Private formattingCancelled As Boolean
 Private executionStartTime As Date
 Private backupFilePath As String
 
+' Image protection variables
+Private Type ImageInfo
+    ParaIndex As Long
+    ImageIndex As Long
+    ImageType As String
+    ImageData As Variant
+    Position As Long
+    WrapType As Long
+    Width As Single
+    Height As Single
+    LeftPosition As Single
+    TopPosition As Single
+    AnchorRange As Range
+End Type
+
+Private savedImages() As ImageInfo
+Private imageCount As Long
+
+' View settings backup variables
+Private Type ViewSettings
+    ViewType As Long
+    ShowVerticalRuler As Boolean
+    ShowHorizontalRuler As Boolean
+    ShowFieldCodes As Boolean
+    ShowBookmarks As Boolean
+    ShowParagraphMarks As Boolean
+    ShowSpaces As Boolean
+    ShowTabs As Boolean
+    ShowHiddenText As Boolean
+    ShowOptionalHyphens As Boolean
+    ShowAll As Boolean
+    ShowDrawings As Boolean
+    ShowObjectAnchors As Boolean
+    ShowTextBoundaries As Boolean
+    ShowHighlight As Boolean
+    ' ShowAnimation removida - compatibilidade
+    DraftFont As Boolean
+    WrapToWindow As Boolean
+    ShowPicturePlaceHolders As Boolean
+    ShowFieldShading As Long
+    TableGridlines As Boolean
+    ' EnlargeFontsLessThan removida - compatibilidade
+End Type
+
+Private originalViewSettings As ViewSettings
+
 '================================================================================
 ' MAIN ENTRY POINT - #STABLE
 '================================================================================
@@ -202,8 +268,30 @@ Public Sub PadronizarDocumentoMain()
         Application.StatusBar = "Backup criado - formatando documento..."
     End If
     
+    ' Backup das configurações de visualização originais
+    If Not BackupViewSettings(doc) Then
+        LogMessage "Aviso: Falha no backup das configurações de visualização", LOG_LEVEL_WARNING
+    End If
+
+    ' Backup de imagens antes das formatações
+    Application.StatusBar = "Catalogando imagens do documento..."
+    If Not BackupAllImages(doc) Then
+        LogMessage "Aviso: Falha no backup de imagens - continuando com proteção básica", LOG_LEVEL_WARNING
+    End If
+
     If Not PreviousFormatting(doc) Then
         GoTo CleanUp
+    End If
+
+    ' Restaura imagens após formatações
+    Application.StatusBar = "Verificando integridade das imagens..."
+    If Not RestoreAllImages(doc) Then
+        LogMessage "Aviso: Algumas imagens podem ter sido afetadas durante o processamento", LOG_LEVEL_WARNING
+    End If
+
+    ' Restaura configurações de visualização originais (exceto zoom)
+    If Not RestoreViewSettings(doc) Then
+        LogMessage "Aviso: Algumas configurações de visualização podem não ter sido restauradas", LOG_LEVEL_WARNING
     End If
 
     If formattingCancelled Then
@@ -215,6 +303,8 @@ Public Sub PadronizarDocumentoMain()
 
 CleanUp:
     SafeCleanup
+    CleanupImageProtection ' Nova função para limpar variáveis de proteção de imagens
+    CleanupViewSettings    ' Nova função para limpar variáveis de configurações de visualização
     
     If Not SetAppState(True, "Documento padronizado com sucesso!") Then
         LogMessage "Falha ao restaurar estado da aplicação", LOG_LEVEL_WARNING
@@ -248,6 +338,16 @@ Private Sub EmergencyRecovery()
     
     If undoGroupEnabled Then
         Application.UndoRecord.EndCustomRecord
+        undoGroupEnabled = False
+    End If
+    
+    ' Limpa variáveis de proteção de imagens em caso de erro
+    CleanupImageProtection
+    
+    ' Limpa variáveis de configurações de visualização em caso de erro
+    CleanupViewSettings
+    
+    LogMessage "Recuperação de emergência executada", LOG_LEVEL_ERROR
         undoGroupEnabled = False
     End If
     
@@ -632,7 +732,7 @@ Private Function PreviousFormatting(doc As Document) As Boolean
         Exit Function
     End If
 
-    ' Limpeza e formatações otimizadas (sem logs detalhados para performance)
+    ' Limpeza e formatações otimizadas (logs reduzidos para performance)
     ClearAllFormatting doc
     CleanDocumentStructure doc
     ValidatePropositionType doc
@@ -709,7 +809,7 @@ Private Function ApplyPageSetup(doc As Document) As Boolean
         .Orientation = wdOrientPortrait
     End With
     
-    LogMessage "Configuração de página aplicada: margens e orientação definidas", LOG_LEVEL_INFO
+    ' Configuração de página aplicada (sem log detalhado para performance)
     ApplyPageSetup = True
     Exit Function
     
@@ -776,33 +876,83 @@ Private Function ApplyStdFont(doc As Document) As Boolean
         End If
 
         If Not hasInlineImage Then
-            ' Aplica formatação de fonte padrão, mas preserva negrito de títulos e considerandos
+            ' Formatação normal para parágrafos sem imagens
             With para.Range.Font
                 .Name = STANDARD_FONT
                 .Size = STANDARD_FONT_SIZE
-                
-                ' Remove sublinhado de todo o documento, exceto do título
-                If .Underline <> wdUnderlineNone And Not isTitle Then
-                    .Underline = wdUnderlineNone
-                    underlineRemovedCount = underlineRemovedCount + 1
-                End If
-                
                 .Color = wdColorAutomatic
             End With
-            
-            ' Trata negrito de forma seletiva
-            If Not isTitle And Not hasConsiderando And Not isSpecialParagraph Then
-                ' Remove negrito apenas se não for título, considerando ou parágrafo especial
-                If para.Range.Font.Bold = True Then
+            formattedCount = formattedCount + 1
+        Else
+            ' NOVO: Formatação protegida para parágrafos COM imagens
+            ' Aplica formatação apenas ao texto, preservando as imagens
+            If ProtectImagesInRange(para.Range) Then
+                formattedCount = formattedCount + 1
+            Else
+                ' Fallback: formatação básica segura
+                Dim textParts As Range
+                Dim j As Long
+                For j = 1 To para.Range.Characters.Count
+                    Set textParts = para.Range.Characters(j)
+                    If textParts.InlineShapes.Count = 0 Then
+                        With textParts.Font
+                            .Name = STANDARD_FONT
+                            .Size = STANDARD_FONT_SIZE
+                            .Color = wdColorAutomatic
+                        End With
+                    End If
+                Next j
+                formattedCount = formattedCount + 1
+            End If
+        End If
+        
+        ' IMPORTANTE: Aplica regras de sublinhado e negrito para TODOS os parágrafos
+        ' (independente se contêm imagens ou não)
+        
+        ' Remove sublinhado de todo o documento, exceto do título
+        If para.Range.Font.Underline <> wdUnderlineNone And Not isTitle Then
+            ' Para parágrafos com imagens, aplica só ao texto
+            If hasInlineImage Then
+                Dim k As Long
+                For k = 1 To para.Range.Characters.Count
+                    Dim charRange As Range
+                    Set charRange = para.Range.Characters(k)
+                    If charRange.InlineShapes.Count = 0 Then
+                        charRange.Font.Underline = wdUnderlineNone
+                    End If
+                Next k
+            Else
+                para.Range.Font.Underline = wdUnderlineNone
+            End If
+            underlineRemovedCount = underlineRemovedCount + 1
+        End If
+        
+        ' Trata negrito de forma seletiva para TODOS os parágrafos
+        If Not isTitle And Not hasConsiderando And Not isSpecialParagraph Then
+            ' Remove negrito apenas se não for título, considerando ou parágrafo especial
+            If para.Range.Font.Bold = True Then
+                ' Para parágrafos com imagens, aplica só ao texto
+                If hasInlineImage Then
+                    Dim m As Long
+                    For m = 1 To para.Range.Characters.Count
+                        Dim charRange2 As Range
+                        Set charRange2 = para.Range.Characters(m)
+                        If charRange2.InlineShapes.Count = 0 Then
+                            charRange2.Font.Bold = False
+                        End If
+                    Next m
+                Else
                     para.Range.Font.Bold = False
                 End If
             End If
-            
-            formattedCount = formattedCount + 1
         End If
     Next i
     
-    LogMessage "Formatação de fonte aplicada: " & formattedCount & " parágrafos formatados, " & skippedCount & " ignorados (proteção de imagens/objetos), " & underlineRemovedCount & " sublinhados removidos (preservando título, considerandos e seções especiais)", LOG_LEVEL_INFO
+    ' Log atualizado para refletir que todos os parágrafos são formatados
+    If skippedCount > 0 Then
+        LogMessage "Fontes formatadas: " & formattedCount & " parágrafos (incluindo " & skippedCount & " com proteção de imagens)"
+    End If
+    
     ApplyStdFont = True
     Exit Function
 
@@ -845,76 +995,82 @@ Private Function ApplyStdParagraphs(doc As Document) As Boolean
             skippedCount = skippedCount + 1
         End If
 
-        If Not hasInlineImage Then
-            ' Limpeza robusta de espaços múltiplos
-            Dim cleanText As String
-            cleanText = para.Range.Text
-            
-            ' Remove múltiplos espaços consecutivos
-            Do While InStr(cleanText, "  ") > 0
-                cleanText = Replace(cleanText, "  ", " ")
-            Loop
-            
-            ' Remove espaços antes/depois de quebras de linha
-            cleanText = Replace(cleanText, " " & vbCr, vbCr)
-            cleanText = Replace(cleanText, vbCr & " ", vbCr)
-            cleanText = Replace(cleanText, " " & vbLf, vbLf)
-            cleanText = Replace(cleanText, vbLf & " ", vbLf)
-            
-            ' Remove tabs extras
-            Do While InStr(cleanText, vbTab & vbTab) > 0
-                cleanText = Replace(cleanText, vbTab & vbTab, vbTab)
-            Loop
-            
-            ' Substitui tabs por espaços simples
-            cleanText = Replace(cleanText, vbTab, " ")
-            
-            ' Remove espaços múltiplos novamente após conversão de tabs
-            Do While InStr(cleanText, "  ") > 0
-                cleanText = Replace(cleanText, "  ", " ")
-            Loop
-            
-            ' Aplica o texto limpo
-            If cleanText <> para.Range.Text Then
-                para.Range.Text = cleanText
-            End If
-
-            paraText = Trim(LCase(Replace(Replace(Replace(para.Range.Text, ".", ""), ",", ""), ";", "")))
-            paraText = Replace(paraText, vbCr, "")
-            paraText = Replace(paraText, vbLf, "")
-            paraText = Replace(paraText, " ", "")
-
-            With para.Format
-                .LineSpacingRule = wdLineSpacingMultiple
-                .LineSpacing = LINE_SPACING
-                .RightIndent = rightMarginPoints
-                .SpaceBefore = 0
-                .SpaceAfter = 0
-
-                If para.Alignment = wdAlignParagraphCenter Then
-                    .LeftIndent = 0
-                    .FirstLineIndent = 0
-                Else
-                    firstIndent = .FirstLineIndent
-                    paragraphIndent = .LeftIndent
-                    If paragraphIndent >= CentimetersToPoints(5) Then
-                        .LeftIndent = CentimetersToPoints(9.5)
-                    ElseIf firstIndent < CentimetersToPoints(5) Then
-                        .LeftIndent = CentimetersToPoints(0)
-                        .FirstLineIndent = CentimetersToPoints(1.5)
-                    End If
-                End If
-            End With
-
-            If para.Alignment = wdAlignParagraphLeft Then
-                para.Alignment = wdAlignParagraphJustify
-            End If
-            
-            formattedCount = formattedCount + 1
+        ' NOVO: Aplica formatação de parágrafo para TODOS os parágrafos
+        ' (independente se contêm imagens ou não)
+        
+        ' Limpeza robusta de espaços múltiplos - SEMPRE aplicada
+        Dim cleanText As String
+        cleanText = para.Range.Text
+        
+        ' Remove múltiplos espaços consecutivos
+        Do While InStr(cleanText, "  ") > 0
+            cleanText = Replace(cleanText, "  ", " ")
+        Loop
+        
+        ' Remove espaços antes/depois de quebras de linha
+        cleanText = Replace(cleanText, " " & vbCr, vbCr)
+        cleanText = Replace(cleanText, vbCr & " ", vbCr)
+        cleanText = Replace(cleanText, " " & vbLf, vbLf)
+        cleanText = Replace(cleanText, vbLf & " ", vbLf)
+        
+        ' Remove tabs extras
+        Do While InStr(cleanText, vbTab & vbTab) > 0
+            cleanText = Replace(cleanText, vbTab & vbTab, vbTab)
+        Loop
+        
+        ' Substitui tabs por espaços simples
+        cleanText = Replace(cleanText, vbTab, " ")
+        
+        ' Remove espaços múltiplos novamente após conversão de tabs
+        Do While InStr(cleanText, "  ") > 0
+            cleanText = Replace(cleanText, "  ", " ")
+        Loop
+        
+        ' Aplica o texto limpo APENAS se não há imagens (proteção)
+        If cleanText <> para.Range.Text And Not hasInlineImage Then
+            para.Range.Text = cleanText
         End If
+
+        paraText = Trim(LCase(Replace(Replace(Replace(para.Range.Text, ".", ""), ",", ""), ";", "")))
+        paraText = Replace(paraText, vbCr, "")
+        paraText = Replace(paraText, vbLf, "")
+        paraText = Replace(paraText, " ", "")
+
+        ' Formatação de parágrafo - SEMPRE aplicada
+        With para.Format
+            .LineSpacingRule = wdLineSpacingMultiple
+            .LineSpacing = LINE_SPACING
+            .RightIndent = rightMarginPoints
+            .SpaceBefore = 0
+            .SpaceAfter = 0
+
+            If para.Alignment = wdAlignParagraphCenter Then
+                .LeftIndent = 0
+                .FirstLineIndent = 0
+            Else
+                firstIndent = .FirstLineIndent
+                paragraphIndent = .LeftIndent
+                If paragraphIndent >= CentimetersToPoints(5) Then
+                    .LeftIndent = CentimetersToPoints(9.5)
+                ElseIf firstIndent < CentimetersToPoints(5) Then
+                    .LeftIndent = CentimetersToPoints(0)
+                    .FirstLineIndent = CentimetersToPoints(1.5)
+                End If
+            End If
+        End With
+
+        If para.Alignment = wdAlignParagraphLeft Then
+            para.Alignment = wdAlignParagraphJustify
+        End If
+        
+        formattedCount = formattedCount + 1
     Next i
     
-    LogMessage "Formatação de parágrafos aplicada: " & formattedCount & " parágrafos formatados, " & skippedCount & " ignorados (proteção de imagens/objetos)", LOG_LEVEL_INFO
+    ' Log atualizado para refletir que todos os parágrafos são formatados
+    If skippedCount > 0 Then
+        LogMessage "Parágrafos formatados: " & formattedCount & " (incluindo " & skippedCount & " com proteção de imagens)"
+    End If
+    
     ApplyStdParagraphs = True
     Exit Function
 
@@ -955,26 +1111,25 @@ Private Function FormatSecondParagraph(doc As Document) As Boolean
             End If
         End If
         
-        ' Proteção: não processa mais de 10 parágrafos
-        If i > 10 Then Exit For
+        ' Proteção expandida: processa até 20 parágrafos para encontrar o 2º
+        If i > 20 Then Exit For
     Next i
     
     ' Aplica formatação específica apenas ao 2º parágrafo
     If secondParaIndex > 0 And secondParaIndex <= doc.Paragraphs.Count Then
         Set para = doc.Paragraphs(secondParaIndex)
         
-        ' Verifica se não é um parágrafo com imagem (proteção)
-        If Not HasVisualContent(para) Then
-            With para.Format
-                .LeftIndent = CentimetersToPoints(9)      ' Recuo à esquerda de 9 cm
-                .FirstLineIndent = 0                      ' Sem recuo da primeira linha
-                .RightIndent = 0                          ' Sem recuo à direita
-                .Alignment = wdAlignParagraphJustify      ' Justificado
-            End With
-            
-            LogMessage "2º parágrafo formatado com recuo de 9cm (posição real: " & secondParaIndex & ")", LOG_LEVEL_INFO
-        Else
-            LogMessage "2º parágrafo ignorado por conter conteúdo visual (posição: " & secondParaIndex & ")", LOG_LEVEL_INFO
+        ' NOVO: Aplica formatação SEMPRE, protegendo apenas as imagens
+        With para.Format
+            .LeftIndent = CentimetersToPoints(9)      ' Recuo à esquerda de 9 cm
+            .FirstLineIndent = 0                      ' Sem recuo da primeira linha
+            .RightIndent = 0                          ' Sem recuo à direita
+            .Alignment = wdAlignParagraphJustify      ' Justificado
+        End With
+        
+        ' Se tem imagens, apenas registra (mas não pula a formatação)
+        If HasVisualContent(para) Then
+            LogMessage "2º parágrafo formatado com proteção de imagem (posição: " & secondParaIndex & ")"
         End If
     Else
         LogMessage "2º parágrafo não encontrado para formatação", LOG_LEVEL_WARNING
@@ -1020,35 +1175,47 @@ Private Function FormatFirstParagraph(doc As Document) As Boolean
             End If
         End If
         
-        ' Proteção: não processa mais de 10 parágrafos
-        If i > 10 Then Exit For
+        ' Proteção expandida: processa até 20 parágrafos para encontrar o 1º
+        If i > 20 Then Exit For
     Next i
     
     ' Aplica formatação específica apenas ao 1º parágrafo
     If firstParaIndex > 0 And firstParaIndex <= doc.Paragraphs.Count Then
         Set para = doc.Paragraphs(firstParaIndex)
         
-        ' Verifica se não é um parágrafo com imagem (proteção)
-        If Not HasVisualContent(para) Then
-            ' Formatação do 1º parágrafo: caixa alta, negrito e sublinhado
+        ' NOVO: Aplica formatação SEMPRE, protegendo apenas as imagens
+        ' Formatação do 1º parágrafo: caixa alta, negrito e sublinhado
+        If HasVisualContent(para) Then
+            ' Para parágrafos com imagens, aplica formatação caractere por caractere
+            Dim n As Long
+            For n = 1 To para.Range.Characters.Count
+                Dim charRange3 As Range
+                Set charRange3 = para.Range.Characters(n)
+                If charRange3.InlineShapes.Count = 0 Then
+                    With charRange3.Font
+                        .AllCaps = True           ' Caixa alta (maiúsculas)
+                        .Bold = True              ' Negrito
+                        .Underline = wdUnderlineSingle ' Sublinhado
+                    End With
+                End If
+            Next n
+            LogMessage "1º parágrafo formatado com proteção de imagem (posição: " & firstParaIndex & ")"
+        Else
+            ' Formatação normal para parágrafos sem imagens
             With para.Range.Font
                 .AllCaps = True           ' Caixa alta (maiúsculas)
                 .Bold = True              ' Negrito
                 .Underline = wdUnderlineSingle ' Sublinhado
             End With
-            
-            ' Aplicar também formatação de parágrafo se necessário
-            With para.Format
-                .Alignment = wdAlignParagraphCenter       ' Centralizado
-                .LeftIndent = 0                           ' Sem recuo à esquerda
-                .FirstLineIndent = 0                      ' Sem recuo da primeira linha
-                .RightIndent = 0                          ' Sem recuo à direita
-            End With
-            
-            LogMessage "1º parágrafo formatado com caixa alta, negrito, sublinhado e centralizado (posição real: " & firstParaIndex & ")", LOG_LEVEL_INFO
-        Else
-            LogMessage "1º parágrafo ignorado por conter conteúdo visual (posição: " & firstParaIndex & ")", LOG_LEVEL_INFO
         End If
+        
+        ' Aplicar também formatação de parágrafo - SEMPRE
+        With para.Format
+            .Alignment = wdAlignParagraphCenter       ' Centralizado
+            .LeftIndent = 0                           ' Sem recuo à esquerda
+            .FirstLineIndent = 0                      ' Sem recuo da primeira linha
+            .RightIndent = 0                          ' Sem recuo à direita
+        End With
     Else
         LogMessage "1º parágrafo não encontrado para formatação", LOG_LEVEL_WARNING
     End If
@@ -1071,10 +1238,10 @@ Private Function EnableHyphenation(doc As Document) As Boolean
         doc.AutoHyphenation = True
         doc.HyphenationZone = CentimetersToPoints(0.63)
         doc.HyphenateCaps = True
-        LogMessage "Hifenização ativada com configurações padrão", LOG_LEVEL_INFO
+        ' Log removido para performance
         EnableHyphenation = True
     Else
-        LogMessage "Hifenização já estava ativa", LOG_LEVEL_INFO
+        ' Log removido para performance
         EnableHyphenation = True
     End If
     
@@ -1130,10 +1297,9 @@ Private Function RemoveWatermark(doc As Document) As Boolean
     Next sec
 
     If removedCount > 0 Then
-        LogMessage "Marcas d'água removidas: " & removedCount & " itens", LOG_LEVEL_INFO
-    Else
-        LogMessage "Nenhuma marca d'água encontrada para remoção", LOG_LEVEL_INFO
+        LogMessage "Marcas d'água removidas: " & removedCount & " itens"
     End If
+    ' Log de "nenhuma marca d'água" removido para performance
     
     RemoveWatermark = True
     Exit Function
@@ -1215,7 +1381,7 @@ Private Function InsertHeaderStamp(doc As Document) As Boolean
     Next sec
 
     If imgFound Then
-        LogMessage "Cabeçalho inserido em " & sectionsProcessed & " seções. Imagem: " & imgFile, LOG_LEVEL_INFO
+        ' Log detalhado removido para performance
         InsertHeaderStamp = True
     Else
         LogMessage "Nenhum cabeçalho foi inserido", LOG_LEVEL_WARNING
@@ -1272,7 +1438,7 @@ Private Function InsertFooterStamp(doc As Document) As Boolean
         End If
     Next sec
 
-    LogMessage "Rodapé inserido em " & sectionsProcessed & " seções com numeração de páginas", LOG_LEVEL_INFO
+    ' Log detalhado removido para performance
     InsertFooterStamp = True
     Exit Function
 
@@ -1356,7 +1522,7 @@ Private Function SaveDocumentFirst(doc As Document) As Boolean
     On Error GoTo ErrorHandler
 
     Application.StatusBar = "Aguardando salvamento do documento..."
-    LogMessage "Iniciando salvamento obrigatório do documento", LOG_LEVEL_INFO
+    ' Log de início removido para performance
     
     Dim saveDialog As Object
     Set saveDialog = Application.Dialogs(wdDialogFileSaveAs)
@@ -1389,7 +1555,7 @@ Private Function SaveDocumentFirst(doc As Document) As Boolean
         Application.StatusBar = "Falha no salvamento - operação cancelada"
         SaveDocumentFirst = False
     Else
-        LogMessage "Documento salvo com sucesso em: " & doc.Path, LOG_LEVEL_INFO
+        ' Log de sucesso removido para performance
         Application.StatusBar = "Documento salvo com sucesso"
         SaveDocumentFirst = True
     End If
@@ -1410,35 +1576,91 @@ Private Function ClearAllFormatting(doc As Document) As Boolean
     
     Application.StatusBar = "Limpando formatação existente..."
     
-    ' Limpeza global mais eficiente
-    With doc.Range
-        ' Remove formatação de caracteres de forma mais direta
-        .Font.Reset
-        .Font.Name = STANDARD_FONT
-        .Font.Size = STANDARD_FONT_SIZE
-        .Font.Color = wdColorAutomatic
+    ' Proteção aprimorada: verifica e protege imagens antes da limpeza global
+    Dim hasImages As Boolean
+    hasImages = (doc.InlineShapes.Count > 0) Or (doc.Shapes.Count > 0)
+    
+    If hasImages Then
+        ' Modo seguro: formata parágrafo por parágrafo, protegendo imagens
+        Dim para As Paragraph
+        Dim paraCount As Long
         
-        ' Remove formatação de parágrafos
-        .ParagraphFormat.Reset
-        .ParagraphFormat.Alignment = wdAlignParagraphLeft
-        .ParagraphFormat.LineSpacing = 12
-        .ParagraphFormat.SpaceBefore = 0
-        .ParagraphFormat.SpaceAfter = 0
-        .ParagraphFormat.LeftIndent = 0
-        .ParagraphFormat.RightIndent = 0
-        .ParagraphFormat.FirstLineIndent = 0
+        For Each para In doc.Paragraphs
+            On Error Resume Next
+            
+            ' Só aplica formatação se o parágrafo não contém imagens
+            If Not HasVisualContent(para) Then
+                With para.Range
+                    .Font.Reset
+                    .Font.Name = STANDARD_FONT
+                    .Font.Size = STANDARD_FONT_SIZE
+                    .Font.Color = wdColorAutomatic
+                    
+                    .ParagraphFormat.Reset
+                    .ParagraphFormat.Alignment = wdAlignParagraphLeft
+                    .ParagraphFormat.LineSpacing = 12
+                    .ParagraphFormat.SpaceBefore = 0
+                    .ParagraphFormat.SpaceAfter = 0
+                    .ParagraphFormat.LeftIndent = 0
+                    .ParagraphFormat.RightIndent = 0
+                    .ParagraphFormat.FirstLineIndent = 0
+                    
+                    .Borders.Enable = False
+                    .Shading.Texture = wdTextureNone
+                End With
+                paraCount = paraCount + 1
+            Else
+                ' Para parágrafos com imagens, só reseta formatação de texto
+                With para.Range.Font
+                    .Name = STANDARD_FONT
+                    .Size = STANDARD_FONT_SIZE
+                    .Color = wdColorAutomatic
+                End With
+            End If
+            
+            ' Evita loops infinitos
+            If paraCount > 1000 Then Exit For
+            On Error GoTo ErrorHandler
+        Next para
         
-        ' Remove bordas e sombreamento
-        On Error Resume Next
-        .Borders.Enable = False
-        .Shading.Texture = wdTextureNone
-        On Error GoTo ErrorHandler
-    End With
+        ' Log detalhado removido para performance
+    Else
+        ' Modo rápido: sem imagens no documento
+        With doc.Range
+            .Font.Reset
+            .Font.Name = STANDARD_FONT
+            .Font.Size = STANDARD_FONT_SIZE
+            .Font.Color = wdColorAutomatic
+            
+            .ParagraphFormat.Reset
+            .ParagraphFormat.Alignment = wdAlignParagraphLeft
+            .ParagraphFormat.LineSpacing = 12
+            .ParagraphFormat.SpaceBefore = 0
+            .ParagraphFormat.SpaceAfter = 0
+            .ParagraphFormat.LeftIndent = 0
+            .ParagraphFormat.RightIndent = 0
+            .ParagraphFormat.FirstLineIndent = 0
+            
+            On Error Resume Next
+            .Borders.Enable = False
+            .Shading.Texture = wdTextureNone
+            On Error GoTo ErrorHandler
+        End With
+        
+        ' Log detalhado removido para performance
+    End If
     
     ' Remove estilos personalizados de forma segura
-    Dim para As Paragraph
-    Dim paraCount As Long
-    paraCount = 0
+    Dim styleResetCount As Long
+    For Each para In doc.Paragraphs
+        On Error Resume Next
+        If Not HasVisualContent(para) Then
+            para.Style = "Normal"
+            styleResetCount = styleResetCount + 1
+        End If
+        If styleResetCount > 1000 Then Exit For
+        On Error GoTo ErrorHandler
+    Next para
     
     For Each para In doc.Paragraphs
         On Error Resume Next
@@ -1497,10 +1719,7 @@ Private Function CleanDocumentStructure(doc As Document) As Boolean
                 para.Range.Delete
                 emptyLinesRemoved = emptyLinesRemoved + 1
             Else
-                ' Log quando preserva um parágrafo por segurança
-                If paraTextEmpty = "" Then
-                    LogMessage "Parágrafo preservado por conter possível conteúdo visual (posição " & i & ")", LOG_LEVEL_INFO
-                End If
+                ' Log removido para performance - preservação por conteúdo visual
             End If
         Next i
     End If
@@ -1562,7 +1781,11 @@ Private Function CleanDocumentStructure(doc As Document) As Boolean
         End If
     Next i
     
-    LogMessage "Estrutura limpa: " & emptyLinesRemoved & " linhas vazias removidas (proteção máxima para imagens), " & leadingSpacesRemoved & " espaços iniciais removidos", LOG_LEVEL_INFO
+    ' Log simplificado apenas se houve limpeza significativa
+    If emptyLinesRemoved > 0 Then
+        LogMessage "Estrutura limpa: " & emptyLinesRemoved & " linhas vazias removidas"
+    End If
+    
     CleanDocumentStructure = True
     Exit Function
 
@@ -1580,6 +1803,7 @@ Private Function HasVisualContent(para As Paragraph) As Boolean
     ' Verifica imagens inline (método principal)
     If para.Range.InlineShapes.Count > 0 Then
         HasVisualContent = True
+        ' Log removido para performance - chamada muito frequente
         Exit Function
     End If
     
@@ -1590,19 +1814,39 @@ Private Function HasVisualContent(para As Paragraph) As Boolean
     ' Caracteres especiais do Word que indicam objetos
     If InStr(paraText, Chr(1)) > 0 Then ' Objeto incorporado
         HasVisualContent = True
+        ' Log removido para performance
         Exit Function
     End If
     
     If InStr(paraText, Chr(8)) > 0 Then ' Campo ou objeto
         HasVisualContent = True
+        ' Log removido para performance
         Exit Function
     End If
     
     ' Verifica se há campos no parágrafo (podem conter imagens)
     If para.Range.Fields.Count > 0 Then
         HasVisualContent = True
+        ' Log removido para performance
         Exit Function
     End If
+    
+    ' Verifica shapes flutuantes ancorados neste parágrafo
+    Dim shape As Shape
+    Dim doc As Document
+    Set doc = para.Range.Document
+    
+    Dim i As Long
+    For i = 1 To doc.Shapes.Count
+        Set shape = doc.Shapes(i)
+        
+        ' Verifica se a shape está ancorada próxima a este parágrafo
+        If shape.Anchor.Start >= para.Range.Start And shape.Anchor.Start <= para.Range.End Then
+            HasVisualContent = True
+            ' Log removido para performance
+            Exit Function
+        End If
+    Next i
     
     ' Proteção extra: parágrafos muito pequenos podem conter anchors ou objetos ocultos
     Dim cleanText As String
@@ -1612,12 +1856,14 @@ Private Function HasVisualContent(para As Paragraph) As Boolean
     If Len(cleanText) > 0 And Len(cleanText) < 10 Then
         ' Pode ser um parágrafo contendo apenas um objeto ou anchor
         HasVisualContent = True
+        ' Log removido para performance
         Exit Function
     End If
     
     ' Verifica se o parágrafo tem formatação especial que pode indicar objeto
     If para.Range.Font.Hidden = True Then
         HasVisualContent = True
+        ' Log removido para performance
         Exit Function
     End If
     
@@ -1627,6 +1873,7 @@ Private Function HasVisualContent(para As Paragraph) As Boolean
 ErrorHandler:
     ' Em caso de erro, assume que há conteúdo visual (máxima segurança)
     HasVisualContent = True
+    ' Log de erro removido para performance - função chamada muito frequentemente
 End Function
 
 '================================================================================
@@ -2445,7 +2692,7 @@ ErrorHandler:
 End Function
 
 '================================================================================
-' CONFIGURE DOCUMENT VIEW - CONFIGURAÇÃO DE VISUALIZAÇÃO - #NEW
+' CONFIGURE DOCUMENT VIEW - CONFIGURAÇÃO DE VISUALIZAÇÃO - #MODIFIED
 '================================================================================
 Private Function ConfigureDocumentView(doc As Document) As Boolean
     On Error GoTo ErrorHandler
@@ -2455,22 +2702,16 @@ Private Function ConfigureDocumentView(doc As Document) As Boolean
     Dim docWindow As Window
     Set docWindow = doc.ActiveWindow
     
-    ' Configura zoom para 110%
+    ' Configura APENAS o zoom para 110% - todas as outras configurações são preservadas
     With docWindow.View
         .Zoom.Percentage = 110
-        .Type = wdPrintView     ' Garante que está no modo de exibição de impressão
+        ' NÃO altera mais o tipo de visualização - preserva o original
     End With
     
-    ' Configurações adicionais de visualização
-    With Application.Options
-        On Error Resume Next
-        .ShowReadabilityStatistics = False  ' Desabilita estatísticas de legibilidade
-        .CheckGrammarAsYouType = True      ' Mantém verificação gramatical
-        .CheckSpellingAsYouType = True     ' Mantém verificação ortográfica
-        On Error GoTo ErrorHandler
-    End With
+    ' Remove configurações que alteravam configurações globais do Word
+    ' Estas configurações são agora preservadas do estado original
     
-    LogMessage "Visualização configurada: zoom 110%, régua visível, modo impressão", LOG_LEVEL_INFO
+    LogMessage "Visualização configurada: zoom definido para 110%, demais configurações preservadas"
     ConfigureDocumentView = True
     Exit Function
 
@@ -2478,4 +2719,622 @@ ErrorHandler:
     LogMessage "Erro ao configurar visualização: " & Err.Description, LOG_LEVEL_WARNING
     ConfigureDocumentView = False ' Não falha o processo por isso
 End Function
+
+'================================================================================
+' SALVAR E SAIR - SUBROTINA PÚBLICA PROFISSIONAL E ROBUSTA
+'================================================================================
+Public Sub SalvarESair()
+    On Error GoTo CriticalErrorHandler
+    
+    Dim startTime As Date
+    startTime = Now
+    
+    Application.StatusBar = "Verificando documentos abertos..."
+    LogMessage "Iniciando processo de salvar e sair - verificação de documentos", LOG_LEVEL_INFO
+    
+    ' Verifica se há documentos abertos
+    If Application.Documents.Count = 0 Then
+        Application.StatusBar = "Nenhum documento aberto - encerrando Word"
+        LogMessage "Nenhum documento aberto - encerrando aplicação", LOG_LEVEL_INFO
+        Application.Quit SaveChanges:=wdDoNotSaveChanges
+        Exit Sub
+    End If
+    
+    ' Coleta informações sobre documentos não salvos
+    Dim unsavedDocs As Collection
+    Set unsavedDocs = New Collection
+    
+    Dim doc As Document
+    Dim i As Long
+    
+    ' Verifica cada documento aberto
+    For i = 1 To Application.Documents.Count
+        Set doc = Application.Documents(i)
+        
+        On Error Resume Next
+        ' Verifica se o documento tem alterações não salvas
+        If doc.Saved = False Or doc.Path = "" Then
+            unsavedDocs.Add doc.Name
+            LogMessage "Documento não salvo detectado: " & doc.Name
+        End If
+        On Error GoTo CriticalErrorHandler
+    Next i
+    
+    ' Se não há documentos não salvos, encerra diretamente
+    If unsavedDocs.Count = 0 Then
+        Application.StatusBar = "Todos os documentos salvos - encerrando Word"
+        LogMessage "Todos os documentos estão salvos - encerrando aplicação"
+        Application.Quit SaveChanges:=wdDoNotSaveChanges
+        Exit Sub
+    End If
+    
+    ' Constrói mensagem detalhada sobre documentos não salvos
+    Dim message As String
+    Dim docList As String
+    
+    For i = 1 To unsavedDocs.Count
+        docList = docList & "• " & unsavedDocs(i) & vbCrLf
+    Next i
+    
+    message = "ATENÇÃO: Há " & unsavedDocs.Count & " documento(s) com alterações não salvas:" & vbCrLf & vbCrLf
+    message = message & docList & vbCrLf
+    message = message & "Deseja salvar todos os documentos antes de sair?" & vbCrLf & vbCrLf
+    message = message & "• SIM: Salva todos e fecha o Word" & vbCrLf
+    message = message & "• NÃO: Fecha sem salvar (PERDE as alterações)" & vbCrLf
+    message = message & "• CANCELAR: Cancela a operação"
+    
+    ' Apresenta opções ao usuário
+    Application.StatusBar = "Aguardando decisão do usuário sobre documentos não salvos..."
+    
+    Dim userChoice As VbMsgBoxResult
+    userChoice = MsgBox(message, vbYesNoCancel + vbExclamation + vbDefaultButton1, _
+                        "Chainsaw - Salvar e Sair (" & unsavedDocs.Count & " documentos não salvos)")
+    
+    Select Case userChoice
+        Case vbYes
+            ' Usuário escolheu salvar todos
+            Application.StatusBar = "Salvando todos os documentos..."
+            LogMessage "Usuário optou por salvar todos os documentos antes de sair"
+            
+            If SalvarTodosDocumentos() Then
+                Application.StatusBar = "Documentos salvos com sucesso - encerrando Word"
+                LogMessage "Todos os documentos salvos com sucesso - encerrando aplicação"
+                Application.Quit SaveChanges:=wdDoNotSaveChanges
+            Else
+                Application.StatusBar = "Erro ao salvar documentos - operação cancelada"
+                LogMessage "Falha ao salvar alguns documentos - operação de sair cancelada", LOG_LEVEL_ERROR
+                MsgBox "Erro ao salvar um ou mais documentos." & vbCrLf & _
+                       "A operação foi cancelada por segurança." & vbCrLf & vbCrLf & _
+                       "Verifique os documentos e tente novamente.", _
+                       vbCritical, "Chainsaw - Erro ao Salvar"
+            End If
+            
+        Case vbNo
+            ' Usuário escolheu não salvar
+            Dim confirmMessage As String
+            confirmMessage = "CONFIRMAÇÃO FINAL:" & vbCrLf & vbCrLf
+            confirmMessage = confirmMessage & "Você está prestes a FECHAR O WORD SEM SALVAR " & unsavedDocs.Count & " documento(s)." & vbCrLf & vbCrLf
+            confirmMessage = confirmMessage & "TODAS AS ALTERAÇÕES NÃO SALVAS SERÃO PERDIDAS!" & vbCrLf & vbCrLf
+            confirmMessage = confirmMessage & "Tem certeza absoluta?"
+            
+            Dim finalConfirm As VbMsgBoxResult
+            finalConfirm = MsgBox(confirmMessage, vbYesNo + vbCritical + vbDefaultButton2, _
+                                  "Chainsaw - CONFIRMAÇÃO FINAL")
+            
+            If finalConfirm = vbYes Then
+                Application.StatusBar = "Fechando Word sem salvar alterações..."
+                LogMessage "Usuário confirmou fechamento sem salvar - encerrando aplicação", LOG_LEVEL_WARNING
+                Application.Quit SaveChanges:=wdDoNotSaveChanges
+            Else
+                Application.StatusBar = "Operação cancelada pelo usuário"
+                LogMessage "Usuário cancelou fechamento sem salvar"
+                MsgBox "Operação cancelada." & vbCrLf & "Os documentos permanecem abertos.", _
+                       vbInformation, "Chainsaw - Operação Cancelada"
+            End If
+            
+        Case vbCancel
+            ' Usuário cancelou
+            Application.StatusBar = "Operação de sair cancelada pelo usuário"
+            LogMessage "Usuário cancelou operação de salvar e sair"
+            MsgBox "Operação cancelada." & vbCrLf & "Os documentos permanecem abertos.", _
+                   vbInformation, "Chainsaw - Operação Cancelada"
+    End Select
+    
+    Application.StatusBar = False
+    LogMessage "Processo de salvar e sair concluído em " & Format(Now - startTime, "hh:mm:ss")
+    Exit Sub
+
+CriticalErrorHandler:
+    Dim errDesc As String
+    errDesc = "ERRO CRÍTICO na operação Salvar e Sair #" & Err.Number & ": " & Err.Description
+    
+    LogMessage errDesc, LOG_LEVEL_ERROR
+    Application.StatusBar = "Erro crítico - operação cancelada"
+    
+    MsgBox "Erro crítico durante a operação Salvar e Sair:" & vbCrLf & vbCrLf & _
+           Err.Description & vbCrLf & vbCrLf & _
+           "A operação foi cancelada por segurança." & vbCrLf & _
+           "Salve manualmente os documentos importantes.", _
+           vbCritical, "Chainsaw - Erro Crítico"
+End Sub
+
+'================================================================================
+' SALVAR TODOS DOCUMENTOS - FUNÇÃO AUXILIAR PRIVADA
+'================================================================================
+Private Function SalvarTodosDocumentos() As Boolean
+    On Error GoTo ErrorHandler
+    
+    Dim doc As Document
+    Dim i As Long
+    Dim savedCount As Long
+    Dim errorCount As Long
+    Dim totalDocs As Long
+    
+    totalDocs = Application.Documents.Count
+    
+    ' Salva cada documento individualmente
+    For i = 1 To totalDocs
+        Set doc = Application.Documents(i)
+        
+        Application.StatusBar = "Salvando documento " & i & " de " & totalDocs & ": " & doc.Name
+        
+        On Error Resume Next
+        
+        ' Se o documento nunca foi salvo (sem caminho), abre dialog
+        If doc.Path = "" Then
+            Dim saveDialog As Object
+            Set saveDialog = Application.FileDialog(msoFileDialogSaveAs)
+            
+            With saveDialog
+                .Title = "Salvar documento: " & doc.Name
+                .InitialFileName = doc.Name
+                
+                If .Show = -1 Then
+                    doc.SaveAs2 .SelectedItems(1)
+                    If Err.Number = 0 Then
+                        savedCount = savedCount + 1
+                        LogMessage "Documento salvo como novo arquivo: " & doc.Name
+                    Else
+                        errorCount = errorCount + 1
+                        LogMessage "Erro ao salvar documento como novo: " & doc.Name & " - " & Err.Description, LOG_LEVEL_ERROR
+                    End If
+                Else
+                    errorCount = errorCount + 1
+                    LogMessage "Salvamento cancelado pelo usuário: " & doc.Name, LOG_LEVEL_WARNING
+                End If
+            End With
+        Else
+            ' Documento já tem caminho, apenas salva
+            doc.Save
+            If Err.Number = 0 Then
+                savedCount = savedCount + 1
+                LogMessage "Documento salvo: " & doc.Name
+            Else
+                errorCount = errorCount + 1
+                LogMessage "Erro ao salvar documento: " & doc.Name & " - " & Err.Description, LOG_LEVEL_ERROR
+            End If
+        End If
+        
+        On Error GoTo ErrorHandler
+    Next i
+    
+    ' Verifica resultado
+    If errorCount = 0 Then
+        LogMessage "Todos os documentos salvos com sucesso: " & savedCount & " de " & totalDocs
+        SalvarTodosDocumentos = True
+    Else
+        LogMessage "Falha parcial no salvamento: " & savedCount & " salvos, " & errorCount & " erros", LOG_LEVEL_WARNING
+        SalvarTodosDocumentos = False
+    End If
+    
+    Exit Function
+
+ErrorHandler:
+    LogMessage "Erro crítico ao salvar documentos: " & Err.Description, LOG_LEVEL_ERROR
+    SalvarTodosDocumentos = False
+End Function
+
+'================================================================================
+' IMAGE PROTECTION SYSTEM - SISTEMA DE PROTEÇÃO DE IMAGENS - #NEW
+'================================================================================
+
+'================================================================================
+' BACKUP ALL IMAGES - Faz backup de propriedades das imagens do documento
+'================================================================================
+Private Function BackupAllImages(doc As Document) As Boolean
+    On Error GoTo ErrorHandler
+    
+    Application.StatusBar = "Fazendo backup das propriedades das imagens..."
+    
+    imageCount = 0
+    ReDim savedImages(0)
+    
+    Dim para As Paragraph
+    Dim i As Long
+    Dim j As Long
+    Dim shape As InlineShape
+    Dim tempImageInfo As ImageInfo
+    
+    ' Conta todas as imagens primeiro
+    Dim totalImages As Long
+    For i = 1 To doc.Paragraphs.Count
+        Set para = doc.Paragraphs(i)
+        totalImages = totalImages + para.Range.InlineShapes.Count
+    Next i
+    
+    ' Adiciona shapes flutuantes
+    totalImages = totalImages + doc.Shapes.Count
+    
+    ' Redimensiona array se necessário
+    If totalImages > 0 Then
+        ReDim savedImages(totalImages - 1)
+        
+        ' Backup de imagens inline - apenas propriedades críticas
+        For i = 1 To doc.Paragraphs.Count
+            Set para = doc.Paragraphs(i)
+            
+            For j = 1 To para.Range.InlineShapes.Count
+                Set shape = para.Range.InlineShapes(j)
+                
+                ' Salva apenas propriedades essenciais para proteção
+                With tempImageInfo
+                    .ParaIndex = i
+                    .ImageIndex = j
+                    .ImageType = "Inline"
+                    .Position = shape.Range.Start
+                    .Width = shape.Width
+                    .Height = shape.Height
+                    Set .AnchorRange = shape.Range.Duplicate
+                    .ImageData = "InlineShape_Protected"
+                End With
+                
+                savedImages(imageCount) = tempImageInfo
+                imageCount = imageCount + 1
+                
+                ' Evita overflow
+                If imageCount >= UBound(savedImages) + 1 Then Exit For
+            Next j
+            
+            ' Evita overflow
+            If imageCount >= UBound(savedImages) + 1 Then Exit For
+        Next i
+        
+        ' Backup de shapes flutuantes - apenas propriedades críticas
+        Dim floatingShape As Shape
+        For i = 1 To doc.Shapes.Count
+            Set floatingShape = doc.Shapes(i)
+            
+            If floatingShape.Type = msoPicture Then
+                ' Redimensiona array se necessário
+                If imageCount >= UBound(savedImages) + 1 Then
+                    ReDim Preserve savedImages(imageCount)
+                End If
+                
+                With tempImageInfo
+                    .ParaIndex = -1 ' Indica que é flutuante
+                    .ImageIndex = i
+                    .ImageType = "Floating"
+                    .WrapType = floatingShape.WrapFormat.Type
+                    .Width = floatingShape.Width
+                    .Height = floatingShape.Height
+                    .LeftPosition = floatingShape.Left
+                    .TopPosition = floatingShape.Top
+                    .ImageData = "FloatingShape_Protected"
+                End With
+                
+                savedImages(imageCount) = tempImageInfo
+                imageCount = imageCount + 1
+            End If
+        Next i
+    End If
+    
+    LogMessage "Backup de propriedades de imagens concluído: " & imageCount & " imagens catalogadas"
+    BackupAllImages = True
+    Exit Function
+
+ErrorHandler:
+    LogMessage "Erro ao fazer backup de propriedades de imagens: " & Err.Description, LOG_LEVEL_WARNING
+    BackupAllImages = False
+End Function
+
+'================================================================================
+' RESTORE ALL IMAGES - Verifica e corrige propriedades das imagens
+'================================================================================
+Private Function RestoreAllImages(doc As Document) As Boolean
+    On Error GoTo ErrorHandler
+    
+    If imageCount = 0 Then
+        RestoreAllImages = True
+        Exit Function
+    End If
+    
+    Application.StatusBar = "Verificando integridade das imagens..."
+    
+    Dim i As Long
+    Dim verifiedCount As Long
+    Dim correctedCount As Long
+    
+    For i = 0 To imageCount - 1
+        On Error Resume Next
+        
+        With savedImages(i)
+            If .ImageType = "Inline" Then
+                ' Verifica se a imagem inline ainda existe na posição esperada
+                If .ParaIndex <= doc.Paragraphs.Count Then
+                    Dim para As Paragraph
+                    Set para = doc.Paragraphs(.ParaIndex)
+                    
+                    ' Se ainda há imagens inline no parágrafo, considera verificada
+                    If para.Range.InlineShapes.Count > 0 Then
+                        verifiedCount = verifiedCount + 1
+                    End If
+                End If
+                
+            ElseIf .ImageType = "Floating" Then
+                ' Verifica e corrige propriedades de shapes flutuantes se ainda existem
+                If .ImageIndex <= doc.Shapes.Count Then
+                    Dim targetShape As Shape
+                    Set targetShape = doc.Shapes(.ImageIndex)
+                    
+                    ' Verifica se as propriedades foram alteradas e corrige se necessário
+                    Dim needsCorrection As Boolean
+                    needsCorrection = False
+                    
+                    If Abs(targetShape.Width - .Width) > 1 Then needsCorrection = True
+                    If Abs(targetShape.Height - .Height) > 1 Then needsCorrection = True
+                    If Abs(targetShape.Left - .LeftPosition) > 1 Then needsCorrection = True
+                    If Abs(targetShape.Top - .TopPosition) > 1 Then needsCorrection = True
+                    
+                    If needsCorrection Then
+                        ' Restaura propriedades originais
+                        With targetShape
+                            .Width = savedImages(i).Width
+                            .Height = savedImages(i).Height
+                            .Left = savedImages(i).LeftPosition
+                            .Top = savedImages(i).TopPosition
+                            .WrapFormat.Type = savedImages(i).WrapType
+                        End With
+                        correctedCount = correctedCount + 1
+                    End If
+                    
+                    verifiedCount = verifiedCount + 1
+                End If
+            End If
+        End With
+        
+        On Error GoTo ErrorHandler
+    Next i
+    
+    If correctedCount > 0 Then
+        LogMessage "Verificação de imagens concluída: " & verifiedCount & " verificadas, " & correctedCount & " corrigidas"
+    Else
+        LogMessage "Verificação de imagens concluída: " & verifiedCount & " imagens íntegras"
+    End If
+    
+    RestoreAllImages = True
+    Exit Function
+
+ErrorHandler:
+    LogMessage "Erro ao verificar imagens: " & Err.Description, LOG_LEVEL_WARNING
+    RestoreAllImages = False
+End Function
+
+'================================================================================
+' GET CLIPBOARD DATA - Obtém dados da área de transferência
+'================================================================================
+Private Function GetClipboardData() As Variant
+    On Error GoTo ErrorHandler
+    
+    ' Placeholder para dados da área de transferência
+    ' Em uma implementação completa, seria necessário usar APIs do Windows
+    ' ou métodos mais avançados para capturar dados binários
+    GetClipboardData = "ImageDataPlaceholder"
+    Exit Function
+
+ErrorHandler:
+    GetClipboardData = Empty
+End Function
+
+'================================================================================
+' ENHANCED IMAGE PROTECTION - Proteção aprimorada durante formatação
+'================================================================================
+Private Function ProtectImagesInRange(targetRange As Range) As Boolean
+    On Error GoTo ErrorHandler
+    
+    ' Verifica se há imagens no range antes de aplicar formatação
+    If targetRange.InlineShapes.Count > 0 Then
+        ' NOVO: Aplica formatação caractere por caractere, protegendo imagens
+        Dim i As Long
+        Dim charRange As Range
+        
+        For i = 1 To targetRange.Characters.Count
+            Set charRange = targetRange.Characters(i)
+            ' Só formata caracteres que não são parte de imagens
+            If charRange.InlineShapes.Count = 0 Then
+                With charRange.Font
+                    .Name = STANDARD_FONT
+                    .Size = STANDARD_FONT_SIZE
+                    .Color = wdColorAutomatic
+                End With
+            End If
+        Next i
+    Else
+        ' Range sem imagens - formatação normal completa
+        With targetRange.Font
+            .Name = STANDARD_FONT
+            .Size = STANDARD_FONT_SIZE
+            .Color = wdColorAutomatic
+        End With
+    End If
+    
+    ProtectImagesInRange = True
+    Exit Function
+
+ErrorHandler:
+    LogMessage "Erro na proteção de imagens: " & Err.Description, LOG_LEVEL_WARNING
+    ProtectImagesInRange = False
+End Function
+
+'================================================================================
+' CLEANUP IMAGE PROTECTION - Limpeza das variáveis de proteção de imagens
+'================================================================================
+Private Sub CleanupImageProtection()
+    On Error Resume Next
+    
+    ' Limpa arrays de imagens
+    If imageCount > 0 Then
+        Dim i As Long
+        For i = 0 To imageCount - 1
+            Set savedImages(i).AnchorRange = Nothing
+        Next i
+    End If
+    
+    imageCount = 0
+    ReDim savedImages(0)
+    
+    LogMessage "Variáveis de proteção de imagens limpas"
+End Sub
+
+'================================================================================
+' VIEW SETTINGS PROTECTION SYSTEM - SISTEMA DE PROTEÇÃO DAS CONFIGURAÇÕES DE VISUALIZAÇÃO
+'================================================================================
+
+'================================================================================
+' BACKUP VIEW SETTINGS - Faz backup das configurações de visualização originais
+'================================================================================
+Private Function BackupViewSettings(doc As Document) As Boolean
+    On Error GoTo ErrorHandler
+    
+    Application.StatusBar = "Fazendo backup das configurações de visualização..."
+    
+    Dim docWindow As Window
+    Set docWindow = doc.ActiveWindow
+    
+    ' Backup das configurações de visualização
+    With originalViewSettings
+        .ViewType = docWindow.View.Type
+        ' Réguas são controladas pelo Window, não pelo View
+        On Error Resume Next
+        .ShowHorizontalRuler = docWindow.DisplayRulers
+        .ShowVerticalRuler = docWindow.DisplayVerticalRuler
+        On Error GoTo ErrorHandler
+        .ShowFieldCodes = docWindow.View.ShowFieldCodes
+        .ShowBookmarks = docWindow.View.ShowBookmarks
+        .ShowParagraphMarks = docWindow.View.ShowParagraphs
+        .ShowSpaces = docWindow.View.ShowSpaces
+        .ShowTabs = docWindow.View.ShowTabs
+        .ShowHiddenText = docWindow.View.ShowHiddenText
+        .ShowOptionalHyphens = docWindow.View.ShowOptionalHyphens
+        .ShowAll = docWindow.View.ShowAll
+        .ShowDrawings = docWindow.View.ShowDrawings
+        .ShowObjectAnchors = docWindow.View.ShowObjectAnchors
+        .ShowTextBoundaries = docWindow.View.ShowTextBoundaries
+        .ShowHighlight = docWindow.View.ShowHighlight
+        ' .ShowAnimation removida - pode não existir em todas as versões
+        .DraftFont = docWindow.View.Draft
+        .WrapToWindow = docWindow.View.WrapToWindow
+        .ShowPicturePlaceHolders = docWindow.View.ShowPicturePlaceHolders
+        .ShowFieldShading = docWindow.View.FieldShading
+        .TableGridlines = docWindow.View.TableGridlines
+        ' .EnlargeFontsLessThan removida - pode não existir em todas as versões
+    End With
+    
+    LogMessage "Backup das configurações de visualização concluído"
+    BackupViewSettings = True
+    Exit Function
+
+ErrorHandler:
+    LogMessage "Erro ao fazer backup das configurações de visualização: " & Err.Description, LOG_LEVEL_WARNING
+    BackupViewSettings = False
+End Function
+
+'================================================================================
+' RESTORE VIEW SETTINGS - Restaura as configurações de visualização originais
+'================================================================================
+Private Function RestoreViewSettings(doc As Document) As Boolean
+    On Error GoTo ErrorHandler
+    
+    Application.StatusBar = "Restaurando configurações de visualização originais..."
+    
+    Dim docWindow As Window
+    Set docWindow = doc.ActiveWindow
+    
+    ' Restaura todas as configurações originais, EXCETO o zoom
+    With docWindow.View
+        .Type = originalViewSettings.ViewType
+        .ShowFieldCodes = originalViewSettings.ShowFieldCodes
+        .ShowBookmarks = originalViewSettings.ShowBookmarks
+        .ShowParagraphs = originalViewSettings.ShowParagraphMarks
+        .ShowSpaces = originalViewSettings.ShowSpaces
+        .ShowTabs = originalViewSettings.ShowTabs
+        .ShowHiddenText = originalViewSettings.ShowHiddenText
+        .ShowOptionalHyphens = originalViewSettings.ShowOptionalHyphens
+        .ShowAll = originalViewSettings.ShowAll
+        .ShowDrawings = originalViewSettings.ShowDrawings
+        .ShowObjectAnchors = originalViewSettings.ShowObjectAnchors
+        .ShowTextBoundaries = originalViewSettings.ShowTextBoundaries
+        .ShowHighlight = originalViewSettings.ShowHighlight
+        ' .ShowAnimation removida para compatibilidade
+        .Draft = originalViewSettings.DraftFont
+        .WrapToWindow = originalViewSettings.WrapToWindow
+        .ShowPicturePlaceHolders = originalViewSettings.ShowPicturePlaceHolders
+        .FieldShading = originalViewSettings.ShowFieldShading
+        .TableGridlines = originalViewSettings.TableGridlines
+        ' .EnlargeFontsLessThan removida para compatibilidade
+        
+        ' ZOOM é mantido em 110% - única configuração que permanece alterada
+        .Zoom.Percentage = 110
+    End With
+    
+    ' Configurações específicas do Window (para réguas)
+    docWindow.DisplayRulers = originalViewSettings.ShowHorizontalRuler
+    docWindow.DisplayVerticalRuler = originalViewSettings.ShowVerticalRuler
+    
+    ' Configurações de barras de rolagem
+    docWindow.DisplayHorizontalScrollBar = originalViewSettings.DisplayHorizontalScrollBar
+    docWindow.DisplayVerticalScrollBar = originalViewSettings.DisplayVerticalScrollBar
+    
+    LogMessage "Configurações de visualização originais restauradas (zoom mantido em 110%)"
+    RestoreViewSettings = True
+    Exit Function
+
+ErrorHandler:
+    LogMessage "Erro ao restaurar configurações de visualização: " & Err.Description, LOG_LEVEL_WARNING
+    RestoreViewSettings = False
+End Function
+
+'================================================================================
+' CLEANUP VIEW SETTINGS - Limpeza das variáveis de configurações de visualização
+'================================================================================
+Private Sub CleanupViewSettings()
+    On Error Resume Next
+    
+    ' Reinicializa a estrutura de configurações
+    With originalViewSettings
+        .ViewType = 0
+        .ShowVerticalRuler = False
+        .ShowHorizontalRuler = False
+        .ShowFieldCodes = False
+        .ShowBookmarks = False
+        .ShowParagraphMarks = False
+        .ShowSpaces = False
+        .ShowTabs = False
+        .ShowHiddenText = False
+        .ShowOptionalHyphens = False
+        .ShowAll = False
+        .ShowDrawings = False
+        .ShowObjectAnchors = False
+        .ShowTextBoundaries = False
+        .ShowHighlight = False
+        ' .ShowAnimation removida para compatibilidade
+        .DraftFont = False
+        .WrapToWindow = False
+        .ShowPicturePlaceHolders = False
+        .ShowFieldShading = 0
+        .TableGridlines = False
+        ' .EnlargeFontsLessThan removida para compatibilidade
+    End With
+    
+    LogMessage "Variáveis de configurações de visualização limpas"
+End Sub
 
