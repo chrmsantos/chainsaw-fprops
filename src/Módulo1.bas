@@ -834,159 +834,129 @@ Private Function ApplyStdFont(doc As Document) As Boolean
     Dim underlineRemovedCount As Long
     Dim isTitle As Boolean
     Dim hasConsiderando As Boolean
+    Dim needsUnderlineRemoval As Boolean
+    Dim needsBoldRemoval As Boolean
 
     For i = doc.Paragraphs.Count To 1 Step -1
         Set para = doc.Paragraphs(i)
         hasInlineImage = False
         isTitle = False
         hasConsiderando = False
+        needsUnderlineRemoval = False
+        needsBoldRemoval = False
         
-        ' OTIMIZADO: Verificação prévia para pular parágrafos já formatados corretamente
-        Dim needsFormatting As Boolean
-        needsFormatting = (para.Range.Font.Name <> STANDARD_FONT) Or _
-                         (para.Range.Font.size <> STANDARD_FONT_SIZE) Or _
-                         (para.Range.Font.Color <> wdColorAutomatic)
+        ' SUPER OTIMIZADO: Verificação prévia consolidada - uma única leitura das propriedades
+        Dim paraFont As Font
+        Set paraFont = para.Range.Font
+        Dim needsFontFormatting As Boolean
+        needsFontFormatting = (paraFont.Name <> STANDARD_FONT) Or _
+                             (paraFont.size <> STANDARD_FONT_SIZE) Or _
+                             (paraFont.Color <> wdColorAutomatic)
         
-        ' Se não precisa de formatação, pula para o próximo (otimização)
-        If Not needsFormatting And para.Range.InlineShapes.Count = 0 Then
+        ' Cache das verificações de formatação especial
+        needsUnderlineRemoval = (paraFont.Underline <> wdUnderlineNone)
+        needsBoldRemoval = (paraFont.Bold = True)
+        
+        ' Cache da contagem de InlineShapes para evitar múltiplas chamadas
+        Dim inlineShapesCount As Long
+        inlineShapesCount = para.Range.InlineShapes.Count
+        
+        ' OTIMIZAÇÃO MÁXIMA: Se não precisa de nenhuma formatação, pula imediatamente
+        If Not needsFontFormatting And Not needsUnderlineRemoval And Not needsBoldRemoval And inlineShapesCount = 0 Then
             formattedCount = formattedCount + 1
             GoTo NextParagraph
         End If
 
-        If para.Range.InlineShapes.Count > 0 Then
+        If inlineShapesCount > 0 Then
             hasInlineImage = True
             skippedCount = skippedCount + 1
         End If
         
-        ' OTIMIZADO: Cache da verificação de conteúdo visual (evita múltiplas chamadas)
-        Dim hasVisualContentCached As Boolean
-        hasVisualContentCached = False
-        
-        ' Proteção adicional: verifica outros tipos de conteúdo visual
-        If Not hasInlineImage Then
-            hasVisualContentCached = HasVisualContent(para)
-            If hasVisualContentCached Then
+        ' OTIMIZADO: Verificação de conteúdo visual só quando necessário
+        If Not hasInlineImage And (needsFontFormatting Or needsUnderlineRemoval Or needsBoldRemoval) Then
+            If HasVisualContent(para) Then
                 hasInlineImage = True
                 skippedCount = skippedCount + 1
             End If
         End If
         
-        ' Verifica se é o primeiro parágrafo com texto (título)
-        If i <= 3 And para.Format.Alignment = wdAlignParagraphCenter Then
-            Dim paraText As String
-            paraText = Trim(Replace(Replace(para.Range.Text, vbCr, ""), vbLf, ""))
-            If paraText <> "" Then
-                ' Primeira linha com texto sempre é título, independente do conteúdo
+        
+        ' OTIMIZADO: Verificação consolidada de tipo de parágrafo - uma única leitura do texto
+        Dim paraFullText As String
+        Dim isSpecialParagraph As Boolean
+        isSpecialParagraph = False
+        
+        ' Só faz verificação de texto se for necessário para formatação especial
+        If needsUnderlineRemoval Or needsBoldRemoval Then
+            paraFullText = Trim(Replace(Replace(para.Range.Text, vbCr, ""), vbLf, ""))
+            
+            ' Verifica se é o primeiro parágrafo com texto (título) - otimizado
+            If i <= 3 And para.Format.Alignment = wdAlignParagraphCenter And paraFullText <> "" Then
                 isTitle = True
             End If
-        End If
-        
-        ' Verifica se o parágrafo começa com "considerando"
-        Dim paraFullText As String
-        paraFullText = Trim(Replace(Replace(para.Range.Text, vbCr, ""), vbLf, ""))
-        If Len(paraFullText) >= 12 And LCase(Left(paraFullText, 12)) = "considerando" Then
-            hasConsiderando = True
-        End If
-        
-        ' Verifica se é um parágrafo especial (Justificativa/Anexo/Anexos)
-        Dim isSpecialParagraph As Boolean
-        Dim cleanParaText As String
-        cleanParaText = LCase(paraFullText)
-        If cleanParaText = "justificativa" Or cleanParaText = "anexo" Or cleanParaText = "anexos" Then
-            isSpecialParagraph = True
+            
+            ' Verifica se o parágrafo começa com "considerando" - otimizado
+            If Len(paraFullText) >= 12 And LCase(Left(paraFullText, 12)) = "considerando" Then
+                hasConsiderando = True
+            End If
+            
+            ' Verifica se é um parágrafo especial - otimizado
+            Dim cleanParaTextLower As String
+            cleanParaTextLower = LCase(paraFullText)
+            If cleanParaTextLower = "justificativa" Or cleanParaTextLower = "anexo" Or cleanParaTextLower = "anexos" Then
+                isSpecialParagraph = True
+            End If
         End If
 
-        If Not hasInlineImage Then
-            ' Formatação normal para parágrafos sem imagens
-            With para.Range.Font
-                .Name = STANDARD_FONT
-                .size = STANDARD_FONT_SIZE
-                .Color = wdColorAutomatic
-            End With
-            formattedCount = formattedCount + 1
-        Else
-            ' NOVO: Formatação protegida para parágrafos COM imagens
-            ' Aplica formatação apenas ao texto, preservando as imagens
-            If ProtectImagesInRange(para.Range) Then
+        ' FORMATAÇÃO PRINCIPAL - Só executa se necessário
+        If needsFontFormatting Then
+            If Not hasInlineImage Then
+                ' Formatação rápida para parágrafos sem imagens
+                With paraFont
+                    .Name = STANDARD_FONT
+                    .size = STANDARD_FONT_SIZE
+                    .Color = wdColorAutomatic
+                End With
                 formattedCount = formattedCount + 1
             Else
-                ' Fallback: formatação básica segura com otimização
-                Dim textParts As Range
-                Dim j As Long
-                Dim charCount As Long
-                charCount = para.Range.Characters.Count ' Cache da contagem
-                
-                If charCount > 0 Then ' Verificação de segurança
-                    For j = 1 To charCount
-                        Set textParts = para.Range.Characters(j)
-                        If textParts.InlineShapes.Count = 0 Then
-                            With textParts.Font
-                                .Name = STANDARD_FONT
-                                .size = STANDARD_FONT_SIZE
-                                .Color = wdColorAutomatic
-                            End With
-                        End If
-                    Next j
-                End If
-                formattedCount = formattedCount + 1
-            End If
-        End If
-        
-        ' IMPORTANTE: Aplica regras de sublinhado e negrito para TODOS os parágrafos
-        ' (independente se contêm imagens ou não)
-        
-        ' Remove sublinhado de todo o documento, exceto do título
-        If para.Range.Font.Underline <> wdUnderlineNone And Not isTitle Then
-            ' Para parágrafos com imagens, aplica só ao texto
-            If hasInlineImage Then
-                Dim k As Long
-                Dim charCount2 As Long
-                charCount2 = para.Range.Characters.Count ' Cache da contagem
-                
-                If charCount2 > 0 Then ' Verificação de segurança
-                    For k = 1 To charCount2
-                        Dim charRange As Range
-                        Set charRange = para.Range.Characters(k)
-                        If charRange.InlineShapes.Count = 0 Then
-                            charRange.Font.Underline = wdUnderlineNone
-                        End If
-                    Next k
-                End If
-            Else
-                para.Range.Font.Underline = wdUnderlineNone
-            End If
-            underlineRemovedCount = underlineRemovedCount + 1
-        End If
-        
-        ' Trata negrito de forma seletiva para TODOS os parágrafos
-        If Not isTitle And Not hasConsiderando And Not isSpecialParagraph Then
-            ' Remove negrito apenas se não for título, considerando ou parágrafo especial
-            If para.Range.Font.Bold = True Then
-                ' Para parágrafos com imagens, aplica só ao texto
-                If hasInlineImage Then
-                    Dim m As Long
-                    Dim charCount3 As Long
-                    charCount3 = para.Range.Characters.Count ' Cache da contagem
-                    
-                    If charCount3 > 0 Then ' Verificação de segurança
-                        For m = 1 To charCount3
-                            Dim charRange2 As Range
-                            Set charRange2 = para.Range.Characters(m)
-                            If charRange2.InlineShapes.Count = 0 Then
-                                charRange2.Font.Bold = False
-                            End If
-                        Next m
-                    End If
+                ' NOVO: Formatação protegida para parágrafos COM imagens
+                If ProtectImagesInRange(para.Range) Then
+                    formattedCount = formattedCount + 1
                 Else
-                    para.Range.Font.Bold = False
+                    ' Fallback: formatação básica segura CONSOLIDADA
+                    Call FormatCharacterByCharacter(para, STANDARD_FONT, STANDARD_FONT_SIZE, wdColorAutomatic, False, False)
+                    formattedCount = formattedCount + 1
                 End If
             End If
         End If
         
+        ' FORMATAÇÃO ESPECIAL CONSOLIDADA - Remove sublinhado e negrito em uma única passada
+        If needsUnderlineRemoval Or needsBoldRemoval Then
+            ' Determina quais formatações remover
+            Dim removeUnderline As Boolean
+            Dim removeBold As Boolean
+            removeUnderline = needsUnderlineRemoval And Not isTitle
+            removeBold = needsBoldRemoval And Not isTitle And Not hasConsiderando And Not isSpecialParagraph
+            
+            ' Se precisa remover alguma formatação
+            If removeUnderline Or removeBold Then
+                If Not hasInlineImage Then
+                    ' Formatação rápida para parágrafos sem imagens
+                    If removeUnderline Then paraFont.Underline = wdUnderlineNone
+                    If removeBold Then paraFont.Bold = False
+                Else
+                    ' Formatação protegida CONSOLIDADA para parágrafos com imagens
+                    Call FormatCharacterByCharacter(para, "", 0, 0, removeUnderline, removeBold)
+                End If
+                
+                If removeUnderline Then underlineRemovedCount = underlineRemovedCount + 1
+            End If
+        End If
+
 NextParagraph:
     Next i
     
-    ' Log atualizado para refletir que todos os parágrafos são formatados
+    ' Log otimizado
     If skippedCount > 0 Then
         LogMessage "Fontes formatadas: " & formattedCount & " parágrafos (incluindo " & skippedCount & " com proteção de imagens)"
     End If
@@ -998,6 +968,37 @@ ErrorHandler:
     LogMessage "Erro na formatação de fonte: " & Err.Description, LOG_LEVEL_ERROR
     ApplyStdFont = False
 End Function
+
+'================================================================================
+' FORMATAÇÃO CARACTERE POR CARACTERE CONSOLIDADA - #OPTIMIZED
+'================================================================================
+Private Sub FormatCharacterByCharacter(para As Paragraph, fontName As String, fontSize As Long, fontColor As Long, removeUnderline As Boolean, removeBold As Boolean)
+    On Error Resume Next
+    
+    Dim j As Long
+    Dim charCount As Long
+    Dim charRange As Range
+    
+    charCount = para.Range.Characters.Count ' Cache da contagem
+    
+    If charCount > 0 Then ' Verificação de segurança
+        For j = 1 To charCount
+            Set charRange = para.Range.Characters(j)
+            If charRange.InlineShapes.Count = 0 Then
+                With charRange.Font
+                    ' Aplica formatação de fonte se especificada
+                    If fontName <> "" Then .Name = fontName
+                    If fontSize > 0 Then .size = fontSize
+                    If fontColor >= 0 Then .Color = fontColor
+                    
+                    ' Remove formatações especiais se solicitado
+                    If removeUnderline Then .Underline = wdUnderlineNone
+                    If removeBold Then .Bold = False
+                End With
+            End If
+        Next j
+    End If
+End Sub
 
 '================================================================================
 ' PARAGRAPH FORMATTING - #STABLE
