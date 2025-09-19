@@ -4367,3 +4367,4 @@ Private Sub CleanupViewSettings()
     
     LogMessage "Variáveis de configurações de visualização limpas"
 End Sub
+
