@@ -99,6 +99,7 @@ Private Const msoFalse As Long = 0
 Private Const msoPicture As Long = 13
 Private Const msoTextEffect As Long = 15
 Private Const wdCollapseEnd As Long = 0
+Private Const wdCollapseStart As Long = 1
 Private Const wdFieldPage As Long = 33
 Private Const wdFieldNumPages As Long = 26
 Private Const wdFieldEmpty As Long = -1
@@ -944,6 +945,12 @@ Private Function PreviousFormatting(doc As Document) As Boolean
     ' Controle de linhas em branco sequenciais (máximo 2)
     LimitSequentialEmptyLines doc
     
+    ' REFORÇO: Garante que o 2º parágrafo mantenha suas 2 linhas em branco
+    EnsureSecondParagraphBlankLines doc
+    
+    ' REFORÇO: Aplica novamente formatação especial para garantir que não foi sobrescrita
+    FormatJustificativaAnexoParagraphs doc
+    
     ' Configuração final da visualização
     ConfigureDocumentView doc
     
@@ -1361,7 +1368,30 @@ Private Function FormatSecondParagraph(doc As Document) As Boolean
     If secondParaIndex > 0 And secondParaIndex <= doc.Paragraphs.Count Then
         Set para = doc.Paragraphs(secondParaIndex)
         
-        ' NOVO: Aplica formatação SEMPRE, protegendo apenas as imagens
+        ' PRIMEIRO: Adiciona 2 linhas em branco ANTES do 2º parágrafo
+        Dim insertionPoint As Range
+        Set insertionPoint = para.Range
+        insertionPoint.Collapse wdCollapseStart
+        
+        ' Verifica se já existem linhas em branco antes
+        Dim blankLinesBefore As Long
+        blankLinesBefore = CountBlankLinesBefore(doc, secondParaIndex)
+        
+        ' Adiciona linhas em branco conforme necessário para chegar a 2
+        If blankLinesBefore < 2 Then
+            Dim linesToAdd As Long
+            linesToAdd = 2 - blankLinesBefore
+            
+            Dim newLines As String
+            newLines = String(linesToAdd, vbCrLf)
+            insertionPoint.InsertBefore newLines
+            
+            ' Atualiza o índice do segundo parágrafo (foi deslocado)
+            secondParaIndex = secondParaIndex + linesToAdd
+            Set para = doc.Paragraphs(secondParaIndex)
+        End If
+        
+        ' FORMATAÇÃO PRINCIPAL: Aplica formatação SEMPRE, protegendo apenas as imagens
         With para.Format
             .LeftIndent = CentimetersToPoints(9)      ' Recuo à esquerda de 9 cm
             .FirstLineIndent = 0                      ' Sem recuo da primeira linha
@@ -1369,9 +1399,30 @@ Private Function FormatSecondParagraph(doc As Document) As Boolean
             .Alignment = wdAlignParagraphJustify      ' Justificado
         End With
         
+        ' SEGUNDO: Adiciona 2 linhas em branco DEPOIS do 2º parágrafo
+        Dim insertionPointAfter As Range
+        Set insertionPointAfter = para.Range
+        insertionPointAfter.Collapse wdCollapseEnd
+        
+        ' Verifica se já existem linhas em branco depois
+        Dim blankLinesAfter As Long
+        blankLinesAfter = CountBlankLinesAfter(doc, secondParaIndex)
+        
+        ' Adiciona linhas em branco conforme necessário para chegar a 2
+        If blankLinesAfter < 2 Then
+            Dim linesToAddAfter As Long
+            linesToAddAfter = 2 - blankLinesAfter
+            
+            Dim newLinesAfter As String
+            newLinesAfter = String(linesToAddAfter, vbCrLf)
+            insertionPointAfter.InsertAfter newLinesAfter
+        End If
+        
         ' Se tem imagens, apenas registra (mas não pula a formatação)
         If HasVisualContent(para) Then
-            LogMessage "2º parágrafo formatado com proteção de imagem (posição: " & secondParaIndex & ")"
+            LogMessage "2º parágrafo formatado com proteção de imagem e linhas em branco (posição: " & secondParaIndex & ")", LOG_LEVEL_INFO
+        Else
+            LogMessage "2º parágrafo formatado com 2 linhas em branco antes e depois (posição: " & secondParaIndex & ")", LOG_LEVEL_INFO
         End If
     Else
         LogMessage "2º parágrafo não encontrado para formatação", LOG_LEVEL_WARNING
@@ -1383,6 +1434,186 @@ Private Function FormatSecondParagraph(doc As Document) As Boolean
 ErrorHandler:
     LogMessage "Erro na formatação do 2º parágrafo: " & Err.Description, LOG_LEVEL_ERROR
     FormatSecondParagraph = False
+End Function
+
+'================================================================================
+' HELPER FUNCTIONS FOR BLANK LINES - Funções auxiliares para linhas em branco
+'================================================================================
+Private Function CountBlankLinesBefore(doc As Document, paraIndex As Long) As Long
+    On Error GoTo ErrorHandler
+    
+    Dim count As Long
+    Dim i As Long
+    Dim para As Paragraph
+    Dim paraText As String
+    
+    count = 0
+    
+    ' Verifica parágrafos anteriores (máximo 5 para performance)
+    For i = paraIndex - 1 To 1 Step -1
+        If i <= 0 Then Exit For
+        
+        Set para = doc.Paragraphs(i)
+        paraText = Trim(Replace(Replace(para.Range.Text, vbCr, ""), vbLf, ""))
+        
+        ' Se o parágrafo está vazio, conta como linha em branco
+        If paraText = "" And Not HasVisualContent(para) Then
+            count = count + 1
+        Else
+            ' Se encontrou parágrafo com conteúdo, para de contar
+            Exit For
+        End If
+        
+        ' Limite de segurança
+        If count >= 5 Then Exit For
+    Next i
+    
+    CountBlankLinesBefore = count
+    Exit Function
+    
+ErrorHandler:
+    CountBlankLinesBefore = 0
+End Function
+
+Private Function CountBlankLinesAfter(doc As Document, paraIndex As Long) As Long
+    On Error GoTo ErrorHandler
+    
+    Dim count As Long
+    Dim i As Long
+    Dim para As Paragraph
+    Dim paraText As String
+    
+    count = 0
+    
+    ' Verifica parágrafos posteriores (máximo 5 para performance)
+    For i = paraIndex + 1 To doc.Paragraphs.Count
+        If i > doc.Paragraphs.Count Then Exit For
+        
+        Set para = doc.Paragraphs(i)
+        paraText = Trim(Replace(Replace(para.Range.Text, vbCr, ""), vbLf, ""))
+        
+        ' Se o parágrafo está vazio, conta como linha em branco
+        If paraText = "" And Not HasVisualContent(para) Then
+            count = count + 1
+        Else
+            ' Se encontrou parágrafo com conteúdo, para de contar
+            Exit For
+        End If
+        
+        ' Limite de segurança
+        If count >= 5 Then Exit For
+    Next i
+    
+    CountBlankLinesAfter = count
+    Exit Function
+    
+ErrorHandler:
+    CountBlankLinesAfter = 0
+End Function
+
+'================================================================================
+' SECOND PARAGRAPH LOCATION HELPER - Localiza o segundo parágrafo
+'================================================================================
+Private Function GetSecondParagraphIndex(doc As Document) As Long
+    On Error GoTo ErrorHandler
+    
+    Dim para As Paragraph
+    Dim paraText As String
+    Dim i As Long
+    Dim actualParaIndex As Long
+    
+    actualParaIndex = 0
+    
+    ' Encontra o 2º parágrafo com conteúdo (pula vazios)
+    For i = 1 To doc.Paragraphs.Count
+        Set para = doc.Paragraphs(i)
+        paraText = Trim(Replace(Replace(para.Range.Text, vbCr, ""), vbLf, ""))
+        
+        ' Se o parágrafo tem texto ou conteúdo visual, conta como parágrafo válido
+        If paraText <> "" Or HasVisualContent(para) Then
+            actualParaIndex = actualParaIndex + 1
+            
+            ' Retorna o índice do 2º parágrafo
+            If actualParaIndex = 2 Then
+                GetSecondParagraphIndex = i
+                Exit Function
+            End If
+        End If
+        
+        ' Proteção: processa até 20 parágrafos para encontrar o 2º
+        If i > 20 Then Exit For
+    Next i
+    
+    GetSecondParagraphIndex = 0  ' Não encontrado
+    Exit Function
+    
+ErrorHandler:
+    GetSecondParagraphIndex = 0
+End Function
+
+'================================================================================
+' ENSURE SECOND PARAGRAPH BLANK LINES - Garante 2 linhas em branco no 2º parágrafo
+'================================================================================
+Private Function EnsureSecondParagraphBlankLines(doc As Document) As Boolean
+    On Error GoTo ErrorHandler
+    
+    Dim secondParaIndex As Long
+    Dim linesToAdd As Long
+    Dim linesToAddAfter As Long
+    
+    secondParaIndex = GetSecondParagraphIndex(doc)
+    linesToAdd = 0
+    linesToAddAfter = 0
+    
+    If secondParaIndex > 0 And secondParaIndex <= doc.Paragraphs.Count Then
+        Dim para As Paragraph
+        Set para = doc.Paragraphs(secondParaIndex)
+        
+        ' Verifica e corrige linhas em branco ANTES
+        Dim blankLinesBefore As Long
+        blankLinesBefore = CountBlankLinesBefore(doc, secondParaIndex)
+        
+        If blankLinesBefore < 2 Then
+            Dim insertionPoint As Range
+            Set insertionPoint = para.Range
+            insertionPoint.Collapse wdCollapseStart
+            
+            linesToAdd = 2 - blankLinesBefore
+            
+            Dim newLines As String
+            newLines = String(linesToAdd, vbCrLf)
+            insertionPoint.InsertBefore newLines
+            
+            ' Atualiza o índice (foi deslocado)
+            secondParaIndex = secondParaIndex + linesToAdd
+            Set para = doc.Paragraphs(secondParaIndex)
+        End If
+        
+        ' Verifica e corrige linhas em branco DEPOIS
+        Dim blankLinesAfter As Long
+        blankLinesAfter = CountBlankLinesAfter(doc, secondParaIndex)
+        
+        If blankLinesAfter < 2 Then
+            Dim insertionPointAfter As Range
+            Set insertionPointAfter = para.Range
+            insertionPointAfter.Collapse wdCollapseEnd
+            
+            linesToAddAfter = 2 - blankLinesAfter
+            
+            Dim newLinesAfter As String
+            newLinesAfter = String(linesToAddAfter, vbCrLf)
+            insertionPointAfter.InsertAfter newLinesAfter
+        End If
+        
+        LogMessage "Linhas em branco do 2º parágrafo reforçadas (antes: " & (blankLinesBefore + linesToAdd) & ", depois: " & (blankLinesAfter + linesToAddAfter) & ")", LOG_LEVEL_INFO
+    End If
+    
+    EnsureSecondParagraphBlankLines = True
+    Exit Function
+    
+ErrorHandler:
+    EnsureSecondParagraphBlankLines = False
+    LogMessage "Erro ao garantir linhas em branco do 2º parágrafo: " & Err.Description, LOG_LEVEL_WARNING
 End Function
 
 '================================================================================
@@ -2455,11 +2686,17 @@ Private Function FormatJustificativaAnexoParagraphs(doc As Document) As Boolean
                 With para.Format
                     .LeftIndent = 0               ' Recuo à esquerda = 0
                     .FirstLineIndent = 0          ' Recuo da 1ª linha = 0
-                    .RightIndent = 0              
+                    .RightIndent = 0              ' Recuo à direita = 0
                     .Alignment = wdAlignParagraphCenter  ' Alinhamento centralizado
                     .SpaceBefore = 12             
                     .SpaceAfter = 6               
                 End With
+                
+                ' FORÇA os recuos zerados com chamadas individuais para garantia
+                para.Format.LeftIndent = 0
+                para.Format.FirstLineIndent = 0
+                para.Format.RightIndent = 0
+                para.Format.Alignment = wdAlignParagraphCenter
                 
                 With para.Range.Font
                     .Bold = True                  ' Negrito
@@ -2478,24 +2715,7 @@ Private Function FormatJustificativaAnexoParagraphs(doc As Document) As Boolean
                 
             ' REQUISITO 1: Formatação de variações de "vereador" 
             ElseIf IsVereadorPattern(cleanText) Then
-                ' Aplica formatação específica para - Vereador -
-                With para.Format
-                    .LeftIndent = 0               ' Recuo à esquerda = 0
-                    .FirstLineIndent = 0          ' Recuo da 1ª linha = 0
-                    .RightIndent = 0              
-                    .Alignment = wdAlignParagraphCenter  ' Alinhamento centralizado
-                    .SpaceBefore = 12             
-                    .SpaceAfter = 6               
-                End With
-                
-                With para.Range.Font
-                    .Bold = True                  ' Negrito
-                End With
-                
-                ' Padroniza o texto
-                para.Range.Text = "- Vereador -" & vbCrLf
-                
-                ' REQUISITO 2: Formatar parágrafo ANTERIOR a "vereador"
+                ' REQUISITO 2: Formatar parágrafo ANTERIOR a "vereador" PRIMEIRO
                 If i > 1 Then
                     Dim paraPrev As Paragraph
                     Set paraPrev = doc.Paragraphs(i - 1)
@@ -2507,10 +2727,21 @@ Private Function FormatJustificativaAnexoParagraphs(doc As Document) As Boolean
                         
                         ' Só formata se o parágrafo anterior tem conteúdo textual
                         If prevText <> "" Then
-                            ' Formatação do parágrafo anterior
+                            ' Formatação COMPLETA do parágrafo anterior
                             With paraPrev.Format
+                                .LeftIndent = 0                      ' Recuo à esquerda = 0
+                                .FirstLineIndent = 0                 ' Recuo da 1ª linha = 0  
+                                .RightIndent = 0                     ' Recuo à direita = 0
                                 .Alignment = wdAlignParagraphCenter  ' Alinhamento centralizado
+                                .SpaceBefore = 12                    
+                                .SpaceAfter = 6                      
                             End With
+                            
+                            ' FORÇA os recuos zerados com chamadas individuais para garantia
+                            paraPrev.Format.LeftIndent = 0
+                            paraPrev.Format.FirstLineIndent = 0
+                            paraPrev.Format.RightIndent = 0
+                            paraPrev.Format.Alignment = wdAlignParagraphCenter
                             
                             With paraPrev.Range.Font
                                 .Bold = True                         ' Negrito
@@ -2519,10 +2750,33 @@ Private Function FormatJustificativaAnexoParagraphs(doc As Document) As Boolean
                             ' Aplica caixa alta ao parágrafo anterior
                             paraPrev.Range.Text = UCase(prevText) & vbCrLf
                             
-                            LogMessage "Parágrafo anterior a '- Vereador -' formatado (centralizado, caixa alta, negrito): " & Left(UCase(prevText), 30) & "...", LOG_LEVEL_INFO
+                            LogMessage "Parágrafo anterior a '- Vereador -' formatado (centralizado, caixa alta, negrito, sem recuos): " & Left(UCase(prevText), 30) & "...", LOG_LEVEL_INFO
                         End If
                     End If
                 End If
+                
+                ' Agora formata o parágrafo "- Vereador -"
+                With para.Format
+                    .LeftIndent = 0               ' Recuo à esquerda = 0
+                    .FirstLineIndent = 0          ' Recuo da 1ª linha = 0
+                    .RightIndent = 0              ' Recuo à direita = 0
+                    .Alignment = wdAlignParagraphCenter  ' Alinhamento centralizado
+                    .SpaceBefore = 12             
+                    .SpaceAfter = 6               
+                End With
+                
+                ' FORÇA os recuos zerados com chamadas individuais para garantia
+                para.Format.LeftIndent = 0
+                para.Format.FirstLineIndent = 0
+                para.Format.RightIndent = 0
+                para.Format.Alignment = wdAlignParagraphCenter
+                
+                With para.Range.Font
+                    .Bold = True                  ' Negrito
+                End With
+                
+                ' Padroniza o texto
+                para.Range.Text = "- Vereador -" & vbCrLf
                 
                 LogMessage "Parágrafo '- Vereador -' formatado (centralizado, negrito, sem recuos)", LOG_LEVEL_INFO
                 vereadorCount = vereadorCount + 1
@@ -2534,11 +2788,17 @@ Private Function FormatJustificativaAnexoParagraphs(doc As Document) As Boolean
                 With para.Format
                     .LeftIndent = 0               ' Recuo à esquerda = 0
                     .FirstLineIndent = 0          ' Recuo da 1ª linha = 0
-                    .RightIndent = 0              
+                    .RightIndent = 0              ' Recuo à direita = 0
                     .Alignment = wdAlignParagraphLeft    ' Alinhamento à esquerda
                     .SpaceBefore = 12             
                     .SpaceAfter = 6               
                 End With
+                
+                ' FORÇA os recuos zerados com chamadas individuais para garantia
+                para.Format.LeftIndent = 0
+                para.Format.FirstLineIndent = 0
+                para.Format.RightIndent = 0
+                para.Format.Alignment = wdAlignParagraphLeft
                 
                 With para.Range.Font
                     .Bold = True                  ' Negrito
@@ -3036,6 +3296,10 @@ Private Function LimitSequentialEmptyLines(doc As Document) As Boolean
     On Error GoTo ErrorHandler
     
     Application.StatusBar = "Controlando linhas em branco sequenciais..."
+    
+    ' IDENTIFICAÇÃO DO SEGUNDO PARÁGRAFO PARA PROTEÇÃO
+    Dim secondParaIndex As Long
+    secondParaIndex = GetSecondParagraphIndex(doc)
     
     ' SUPER OTIMIZADO: Usa Find/Replace com wildcard para operação muito mais rápida
     Dim rng As Range
