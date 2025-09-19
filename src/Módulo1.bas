@@ -252,7 +252,7 @@ Public Sub PadronizarDocumentoMain()
         GoTo CleanUp
     End If
     
-    If doc.Path = "" Then
+    If doc.path = "" Then
         If Not SaveDocumentFirst(doc) Then
             Application.StatusBar = "Operação cancelada: documento precisa ser salvo"
             LogMessage "Operação cancelada - documento não foi salvo", LOG_LEVEL_INFO
@@ -331,8 +331,8 @@ End Sub
 Private Sub EmergencyRecovery()
     On Error Resume Next
     
-    Application.ScreenUpdating = True
-    Application.DisplayAlerts = wdAlertsAll
+    Application.screenUpdating = True
+    Application.displayAlerts = wdAlertsAll
     Application.StatusBar = False
     Application.EnableCancelKey = 0
     
@@ -349,7 +349,6 @@ Private Sub EmergencyRecovery()
     
     LogMessage "Recuperação de emergência executada", LOG_LEVEL_ERROR
         undoGroupEnabled = False
-    End If
     
     CloseAllOpenFiles
 End Sub
@@ -454,8 +453,8 @@ End Sub
 Private Function InitializeLogging(doc As Document) As Boolean
     On Error GoTo ErrorHandler
     
-    If doc.Path <> "" Then
-        logFilePath = doc.Path & "\" & Format(Now, "yyyy-mm-dd") & "_" & _
+    If doc.path <> "" Then
+        logFilePath = doc.path & "\" & Format(Now, "yyyy-mm-dd") & "_" & _
                      Replace(doc.Name, ".doc", "") & "_FormattingLog.txt"
         logFilePath = Replace(logFilePath, ".docx", "") & "_FormattingLog.txt"
         logFilePath = Replace(logFilePath, ".docm", "") & "_FormattingLog.txt"
@@ -467,16 +466,18 @@ Private Function InitializeLogging(doc As Document) As Boolean
     Print #1, "========================================================"
     Print #1, "LOG DE FORMATAÇÃO DE DOCUMENTO - SISTEMA DE REGISTRO"
     Print #1, "========================================================"
+    Print #1, "Duração: " & Format(Now - executionStartTime, "HH:MM:ss")
+    Print #1, "Erros: " & Err.Number & " - " & Err.Description
+    Print #1, "Status: INICIANDO"
+    Print #1, "--------------------------------------------------------"
     Print #1, "Sessão: " & Format(Now, "yyyy-mm-dd HH:MM:ss")
     Print #1, "Usuário: " & Environ("USERNAME")
     Print #1, "Estação: " & Environ("COMPUTERNAME")
     Print #1, "Versão Word: " & Application.version
     Print #1, "Documento: " & doc.Name
-    Print #1, "Local: " & IIf(doc.Path = "", "(Não salvo)", doc.Path)
+    Print #1, "Local: " & IIf(doc.path = "", "(Não salvo)", doc.path)
     Print #1, "Proteção: " & GetProtectionType(doc)
     Print #1, "Tamanho: " & GetDocumentSize(doc)
-    Print #1, "Tempo Execução: " & Format(Now - executionStartTime, "HH:MM:ss")
-    Print #1, "Erros: " & Err.Number & " - " & Err.Description
     Print #1, "========================================================"
     Close #1
     
@@ -536,6 +537,7 @@ Private Sub SafeFinalizeLogging()
         Print #1, "================================================"
         Print #1, "FIM DA SESSÃO - " & Format(Now, "yyyy-mm-dd HH:MM:ss")
         Print #1, "Duração: " & Format(Now - executionStartTime, "HH:MM:ss")
+        Print #1, "Erros: " & IIf(Err.Number = 0, "Nenhum", Err.Number & " - " & Err.Description)
         Print #1, "Status: " & IIf(formattingCancelled, "CANCELADO", "CONCLUÍDO")
         Print #1, "================================================"
         Close #1
@@ -595,12 +597,12 @@ Private Function SetAppState(Optional ByVal enabled As Boolean = True, Optional 
     
     With Application
         On Error Resume Next
-        .ScreenUpdating = enabled
+        .screenUpdating = enabled
         If Err.Number <> 0 Then success = False
         On Error GoTo ErrorHandler
         
         On Error Resume Next
-        .DisplayAlerts = IIf(enabled, wdAlertsAll, wdAlertsNone)
+        .displayAlerts = IIf(enabled, wdAlertsAll, wdAlertsNone)
         If Err.Number <> 0 Then success = False
         On Error GoTo ErrorHandler
         
@@ -698,8 +700,8 @@ Private Function CheckDiskSpace(doc As Document) As Boolean
     
     Set fso = CreateObject("Scripting.FileSystemObject")
     
-    If doc.Path <> "" Then
-        Set drive = fso.GetDrive(Left(doc.Path, 3))
+    If doc.path <> "" Then
+        Set drive = fso.GetDrive(Left(doc.path, 3))
     Else
         Set drive = fso.GetDrive(Left(Environ("TEMP"), 3))
     End If
@@ -838,16 +840,35 @@ Private Function ApplyStdFont(doc As Document) As Boolean
         hasInlineImage = False
         isTitle = False
         hasConsiderando = False
+        
+        ' OTIMIZADO: Verificação prévia para pular parágrafos já formatados corretamente
+        Dim needsFormatting As Boolean
+        needsFormatting = (para.Range.Font.Name <> STANDARD_FONT) Or _
+                         (para.Range.Font.size <> STANDARD_FONT_SIZE) Or _
+                         (para.Range.Font.Color <> wdColorAutomatic)
+        
+        ' Se não precisa de formatação, pula para o próximo (otimização)
+        If Not needsFormatting And para.Range.InlineShapes.Count = 0 Then
+            formattedCount = formattedCount + 1
+            GoTo NextParagraph
+        End If
 
         If para.Range.InlineShapes.Count > 0 Then
             hasInlineImage = True
             skippedCount = skippedCount + 1
         End If
         
+        ' OTIMIZADO: Cache da verificação de conteúdo visual (evita múltiplas chamadas)
+        Dim hasVisualContentCached As Boolean
+        hasVisualContentCached = False
+        
         ' Proteção adicional: verifica outros tipos de conteúdo visual
-        If Not hasInlineImage And HasVisualContent(para) Then
-            hasInlineImage = True
-            skippedCount = skippedCount + 1
+        If Not hasInlineImage Then
+            hasVisualContentCached = HasVisualContent(para)
+            If hasVisualContentCached Then
+                hasInlineImage = True
+                skippedCount = skippedCount + 1
+            End If
         End If
         
         ' Verifica se é o primeiro parágrafo com texto (título)
@@ -879,7 +900,7 @@ Private Function ApplyStdFont(doc As Document) As Boolean
             ' Formatação normal para parágrafos sem imagens
             With para.Range.Font
                 .Name = STANDARD_FONT
-                .Size = STANDARD_FONT_SIZE
+                .size = STANDARD_FONT_SIZE
                 .Color = wdColorAutomatic
             End With
             formattedCount = formattedCount + 1
@@ -889,19 +910,24 @@ Private Function ApplyStdFont(doc As Document) As Boolean
             If ProtectImagesInRange(para.Range) Then
                 formattedCount = formattedCount + 1
             Else
-                ' Fallback: formatação básica segura
+                ' Fallback: formatação básica segura com otimização
                 Dim textParts As Range
                 Dim j As Long
-                For j = 1 To para.Range.Characters.Count
-                    Set textParts = para.Range.Characters(j)
-                    If textParts.InlineShapes.Count = 0 Then
-                        With textParts.Font
-                            .Name = STANDARD_FONT
-                            .Size = STANDARD_FONT_SIZE
-                            .Color = wdColorAutomatic
-                        End With
-                    End If
-                Next j
+                Dim charCount As Long
+                charCount = para.Range.Characters.Count ' Cache da contagem
+                
+                If charCount > 0 Then ' Verificação de segurança
+                    For j = 1 To charCount
+                        Set textParts = para.Range.Characters(j)
+                        If textParts.InlineShapes.Count = 0 Then
+                            With textParts.Font
+                                .Name = STANDARD_FONT
+                                .size = STANDARD_FONT_SIZE
+                                .Color = wdColorAutomatic
+                            End With
+                        End If
+                    Next j
+                End If
                 formattedCount = formattedCount + 1
             End If
         End If
@@ -914,13 +940,18 @@ Private Function ApplyStdFont(doc As Document) As Boolean
             ' Para parágrafos com imagens, aplica só ao texto
             If hasInlineImage Then
                 Dim k As Long
-                For k = 1 To para.Range.Characters.Count
-                    Dim charRange As Range
-                    Set charRange = para.Range.Characters(k)
-                    If charRange.InlineShapes.Count = 0 Then
-                        charRange.Font.Underline = wdUnderlineNone
-                    End If
-                Next k
+                Dim charCount2 As Long
+                charCount2 = para.Range.Characters.Count ' Cache da contagem
+                
+                If charCount2 > 0 Then ' Verificação de segurança
+                    For k = 1 To charCount2
+                        Dim charRange As Range
+                        Set charRange = para.Range.Characters(k)
+                        If charRange.InlineShapes.Count = 0 Then
+                            charRange.Font.Underline = wdUnderlineNone
+                        End If
+                    Next k
+                End If
             Else
                 para.Range.Font.Underline = wdUnderlineNone
             End If
@@ -934,18 +965,25 @@ Private Function ApplyStdFont(doc As Document) As Boolean
                 ' Para parágrafos com imagens, aplica só ao texto
                 If hasInlineImage Then
                     Dim m As Long
-                    For m = 1 To para.Range.Characters.Count
-                        Dim charRange2 As Range
-                        Set charRange2 = para.Range.Characters(m)
-                        If charRange2.InlineShapes.Count = 0 Then
-                            charRange2.Font.Bold = False
-                        End If
-                    Next m
+                    Dim charCount3 As Long
+                    charCount3 = para.Range.Characters.Count ' Cache da contagem
+                    
+                    If charCount3 > 0 Then ' Verificação de segurança
+                        For m = 1 To charCount3
+                            Dim charRange2 As Range
+                            Set charRange2 = para.Range.Characters(m)
+                            If charRange2.InlineShapes.Count = 0 Then
+                                charRange2.Font.Bold = False
+                            End If
+                        Next m
+                    End If
                 Else
                     para.Range.Font.Bold = False
                 End If
             End If
         End If
+        
+NextParagraph:
     Next i
     
     ' Log atualizado para refletir que todos os parágrafos são formatados
@@ -1002,29 +1040,30 @@ Private Function ApplyStdParagraphs(doc As Document) As Boolean
         Dim cleanText As String
         cleanText = para.Range.Text
         
-        ' Remove múltiplos espaços consecutivos
-        Do While InStr(cleanText, "  ") > 0
-            cleanText = Replace(cleanText, "  ", " ")
-        Loop
-        
-        ' Remove espaços antes/depois de quebras de linha
-        cleanText = Replace(cleanText, " " & vbCr, vbCr)
-        cleanText = Replace(cleanText, vbCr & " ", vbCr)
-        cleanText = Replace(cleanText, " " & vbLf, vbLf)
-        cleanText = Replace(cleanText, vbLf & " ", vbLf)
-        
-        ' Remove tabs extras
-        Do While InStr(cleanText, vbTab & vbTab) > 0
-            cleanText = Replace(cleanText, vbTab & vbTab, vbTab)
-        Loop
-        
-        ' Substitui tabs por espaços simples
-        cleanText = Replace(cleanText, vbTab, " ")
-        
-        ' Remove espaços múltiplos novamente após conversão de tabs
-        Do While InStr(cleanText, "  ") > 0
-            cleanText = Replace(cleanText, "  ", " ")
-        Loop
+        ' OTIMIZADO: Combinação de múltiplas operações de limpeza em um bloco
+        If InStr(cleanText, "  ") > 0 Or InStr(cleanText, vbTab) > 0 Then
+            ' Remove múltiplos espaços consecutivos
+            Do While InStr(cleanText, "  ") > 0
+                cleanText = Replace(cleanText, "  ", " ")
+            Loop
+            
+            ' Remove espaços antes/depois de quebras de linha
+            cleanText = Replace(cleanText, " " & vbCr, vbCr)
+            cleanText = Replace(cleanText, vbCr & " ", vbCr)
+            cleanText = Replace(cleanText, " " & vbLf, vbLf)
+            cleanText = Replace(cleanText, vbLf & " ", vbLf)
+            
+            ' Remove tabs extras e converte para espaços
+            Do While InStr(cleanText, vbTab & vbTab) > 0
+                cleanText = Replace(cleanText, vbTab & vbTab, vbTab)
+            Loop
+            cleanText = Replace(cleanText, vbTab, " ")
+            
+            ' Limpeza final de espaços múltiplos
+            Do While InStr(cleanText, "  ") > 0
+                cleanText = Replace(cleanText, "  ", " ")
+            Loop
+        End If
         
         ' Aplica o texto limpo APENAS se não há imagens (proteção)
         If cleanText <> para.Range.Text And Not hasInlineImage Then
@@ -1188,17 +1227,22 @@ Private Function FormatFirstParagraph(doc As Document) As Boolean
         If HasVisualContent(para) Then
             ' Para parágrafos com imagens, aplica formatação caractere por caractere
             Dim n As Long
-            For n = 1 To para.Range.Characters.Count
-                Dim charRange3 As Range
-                Set charRange3 = para.Range.Characters(n)
-                If charRange3.InlineShapes.Count = 0 Then
-                    With charRange3.Font
-                        .AllCaps = True           ' Caixa alta (maiúsculas)
-                        .Bold = True              ' Negrito
-                        .Underline = wdUnderlineSingle ' Sublinhado
-                    End With
-                End If
-            Next n
+            Dim charCount4 As Long
+            charCount4 = para.Range.Characters.Count ' Cache da contagem
+            
+            If charCount4 > 0 Then ' Verificação de segurança
+                For n = 1 To charCount4
+                    Dim charRange3 As Range
+                    Set charRange3 = para.Range.Characters(n)
+                    If charRange3.InlineShapes.Count = 0 Then
+                        With charRange3.Font
+                            .AllCaps = True           ' Caixa alta (maiúsculas)
+                            .Bold = True              ' Negrito
+                            .Underline = wdUnderlineSingle ' Sublinhado
+                        End With
+                    End If
+                Next n
+            End If
             LogMessage "1º parágrafo formatado com proteção de imagem (posição: " & firstParaIndex & ")"
         Else
             ' Formatação normal para parágrafos sem imagens
@@ -1260,7 +1304,7 @@ Private Function RemoveWatermark(doc As Document) As Boolean
 
     Dim sec As Section
     Dim header As HeaderFooter
-    Dim shp As Shape
+    Dim shp As shape
     Dim i As Long
     Dim removedCount As Long
 
@@ -1321,7 +1365,7 @@ Private Function InsertHeaderStamp(doc As Document) As Boolean
     Dim username As String
     Dim imgWidth As Single
     Dim imgHeight As Single
-    Dim shp As Shape
+    Dim shp As shape
     Dim imgFound As Boolean
     Dim sectionsProcessed As Long
 
@@ -1355,7 +1399,7 @@ Private Function InsertHeaderStamp(doc As Document) As Boolean
             header.Range.Delete
             
             Set shp = header.Shapes.AddPicture( _
-                FileName:=imgFile, _
+                fileName:=imgFile, _
                 LinkToFile:=False, _
                 SaveWithDocument:=msoTrue)
             
@@ -1541,7 +1585,7 @@ Private Function SaveDocumentFirst(doc As Document) As Boolean
     
     For waitCount = 1 To maxWait
         DoEvents
-        If doc.Path <> "" Then Exit For
+        If doc.path <> "" Then Exit For
         Dim startTime As Double
         startTime = Timer
         Do While Timer < startTime + 1
@@ -1550,7 +1594,7 @@ Private Function SaveDocumentFirst(doc As Document) As Boolean
         Application.StatusBar = "Aguardando salvamento... (" & waitCount & "/" & maxWait & ")"
     Next waitCount
 
-    If doc.Path = "" Then
+    If doc.path = "" Then
         LogMessage "Falha ao salvar documento após " & maxWait & " tentativas", LOG_LEVEL_ERROR
         Application.StatusBar = "Falha no salvamento - operação cancelada"
         SaveDocumentFirst = False
@@ -1593,7 +1637,7 @@ Private Function ClearAllFormatting(doc As Document) As Boolean
                 With para.Range
                     .Font.Reset
                     .Font.Name = STANDARD_FONT
-                    .Font.Size = STANDARD_FONT_SIZE
+                    .Font.size = STANDARD_FONT_SIZE
                     .Font.Color = wdColorAutomatic
                     
                     .ParagraphFormat.Reset
@@ -1605,7 +1649,7 @@ Private Function ClearAllFormatting(doc As Document) As Boolean
                     .ParagraphFormat.RightIndent = 0
                     .ParagraphFormat.FirstLineIndent = 0
                     
-                    .Borders.Enable = False
+                    .Borders.enable = False
                     .Shading.Texture = wdTextureNone
                 End With
                 paraCount = paraCount + 1
@@ -1613,7 +1657,7 @@ Private Function ClearAllFormatting(doc As Document) As Boolean
                 ' Para parágrafos com imagens, só reseta formatação de texto
                 With para.Range.Font
                     .Name = STANDARD_FONT
-                    .Size = STANDARD_FONT_SIZE
+                    .size = STANDARD_FONT_SIZE
                     .Color = wdColorAutomatic
                 End With
             End If
@@ -1629,7 +1673,7 @@ Private Function ClearAllFormatting(doc As Document) As Boolean
         With doc.Range
             .Font.Reset
             .Font.Name = STANDARD_FONT
-            .Font.Size = STANDARD_FONT_SIZE
+            .Font.size = STANDARD_FONT_SIZE
             .Font.Color = wdColorAutomatic
             
             .ParagraphFormat.Reset
@@ -1642,7 +1686,7 @@ Private Function ClearAllFormatting(doc As Document) As Boolean
             .ParagraphFormat.FirstLineIndent = 0
             
             On Error Resume Next
-            .Borders.Enable = False
+            .Borders.enable = False
             .Shading.Texture = wdTextureNone
             On Error GoTo ErrorHandler
         End With
@@ -1733,20 +1777,20 @@ Private Function CleanDocumentStructure(doc As Document) As Boolean
     '     Set para = doc.Paragraphs(i)
     '     Dim paraText As String
     '     paraText = Trim(Replace(Replace(para.Range.Text, vbCr, ""), vbLf, ""))
-    '     
+    '
     '     ' Verifica se há conteúdo (texto OU conteúdo visual)
     '     If paraText <> "" Or HasVisualContent(para) Then
     '         lastContentParaIndex = i
     '         Exit For
     '     End If
     ' Next i
-    ' 
+    '
     ' If lastContentParaIndex > 0 And lastContentParaIndex < doc.Paragraphs.Count Then
     '     For i = doc.Paragraphs.Count To lastContentParaIndex + 1 Step -1
     '         Set para = doc.Paragraphs(i)
     '         Dim paraTextFinal As String
     '         paraTextFinal = Trim(Replace(Replace(para.Range.Text, vbCr, ""), vbLf, ""))
-    '         
+    '
     '         ' PROTEÇÃO MÁXIMA: Usa função especializada para detectar conteúdo visual
     '         If paraTextFinal = "" And Not HasVisualContent(para) Then
     '             para.Range.Delete
@@ -1832,7 +1876,7 @@ Private Function HasVisualContent(para As Paragraph) As Boolean
     End If
     
     ' Verifica shapes flutuantes ancorados neste parágrafo
-    Dim shape As Shape
+    Dim shape As shape
     Dim doc As Document
     Set doc = para.Range.Document
     
@@ -2108,7 +2152,7 @@ Private Function ApplyTextReplacements(doc As Document) As Boolean
     ReDim dOesteVariants(0 To 15)
     dOesteVariants(0) = "d'O"   ' Original
     dOesteVariants(1) = "d´O"   ' Acento agudo
-    dOesteVariants(2) = "d`O"   ' Acento grave  
+    dOesteVariants(2) = "d`O"   ' Acento grave
     dOesteVariants(3) = "d" & Chr(8220) & "O"   ' Aspas curvas esquerda
     dOesteVariants(4) = "d'o"   ' Minúscula
     dOesteVariants(5) = "d´o"
@@ -2276,8 +2320,8 @@ Public Sub AbrirPastaLogs()
     On Error GoTo ErrorHandler
     
     ' Define pasta de logs baseada no documento atual ou temp
-    If Not doc Is Nothing And doc.Path <> "" Then
-        logsFolder = doc.Path
+    If Not doc Is Nothing And doc.path <> "" Then
+        logsFolder = doc.path
     Else
         logsFolder = Environ("TEMP")
     End If
@@ -2288,7 +2332,7 @@ Public Sub AbrirPastaLogs()
     End If
     
     ' Abre a pasta no Windows Explorer
-    Shell "explorer.exe """ & logsFolder & """", vbNormalFocus
+    shell "explorer.exe """ & logsFolder & """", vbNormalFocus
     
     Application.StatusBar = "Pasta de logs aberta: " & logsFolder
     
@@ -2304,7 +2348,7 @@ ErrorHandler:
     
     ' Fallback: tenta abrir pasta temporária
     On Error Resume Next
-    Shell "explorer.exe """ & Environ("TEMP") & """", vbNormalFocus
+    shell "explorer.exe """ & Environ("TEMP") & """", vbNormalFocus
     If Err.Number = 0 Then
         Application.StatusBar = "Pasta temporária aberta como alternativa"
     Else
@@ -2325,7 +2369,7 @@ Public Sub AbrirRepositorioGitHub()
     repoURL = "https://github.com/chrmsantos/chainsaw-fprops"
     
     ' Abre o link no navegador padrão
-    shellResult = Shell("rundll32.exe url.dll,FileProtocolHandler " & repoURL, vbNormalFocus)
+    shellResult = shell("rundll32.exe url.dll,FileProtocolHandler " & repoURL, vbNormalFocus)
     
     If shellResult > 0 Then
         Application.StatusBar = "Repositório GitHub aberto no navegador"
@@ -2368,7 +2412,7 @@ Private Function CreateDocumentBackup(doc As Document) As Boolean
     On Error GoTo ErrorHandler
     
     ' Não faz backup se documento não foi salvo
-    If doc.Path = "" Then
+    If doc.path = "" Then
         LogMessage "Backup ignorado - documento não salvo", LOG_LEVEL_INFO
         CreateDocumentBackup = True
         Exit Function
@@ -2384,7 +2428,7 @@ Private Function CreateDocumentBackup(doc As Document) As Boolean
     Set fso = CreateObject("Scripting.FileSystemObject")
     
     ' Define pasta de backup
-    backupFolder = fso.GetParentFolderName(doc.Path) & "\" & BACKUP_FOLDER_NAME
+    backupFolder = fso.GetParentFolderName(doc.path) & "\" & BACKUP_FOLDER_NAME
     
     ' Cria pasta de backup se não existir
     If Not fso.FolderExists(backupFolder) Then
@@ -2467,8 +2511,8 @@ Public Sub AbrirPastaBackups()
     On Error GoTo ErrorHandler
     
     ' Define pasta de backup baseada no documento atual
-    If Not doc Is Nothing And doc.Path <> "" Then
-        backupFolder = fso.GetParentFolderName(doc.Path) & "\" & BACKUP_FOLDER_NAME
+    If Not doc Is Nothing And doc.path <> "" Then
+        backupFolder = fso.GetParentFolderName(doc.path) & "\" & BACKUP_FOLDER_NAME
     Else
         Application.StatusBar = "Nenhum documento salvo ativo para localizar pasta de backups"
         Exit Sub
@@ -2482,7 +2526,7 @@ Public Sub AbrirPastaBackups()
     End If
     
     ' Abre a pasta no Windows Explorer
-    Shell "explorer.exe """ & backupFolder & """", vbNormalFocus
+    shell "explorer.exe """ & backupFolder & """", vbNormalFocus
     
     Application.StatusBar = "Pasta de backups aberta: " & backupFolder
     
@@ -2499,10 +2543,10 @@ ErrorHandler:
     
     ' Fallback: tenta abrir pasta do documento
     On Error Resume Next
-    If Not doc Is Nothing And doc.Path <> "" Then
+    If Not doc Is Nothing And doc.path <> "" Then
         Dim docFolder As String
-        docFolder = fso.GetParentFolderName(doc.Path)
-        Shell "explorer.exe """ & docFolder & """", vbNormalFocus
+        docFolder = fso.GetParentFolderName(doc.path)
+        shell "explorer.exe """ & docFolder & """", vbNormalFocus
         Application.StatusBar = "Pasta do documento aberta como alternativa"
     Else
         Application.StatusBar = "Não foi possível abrir pasta de backups"
@@ -2753,7 +2797,7 @@ Public Sub SalvarESair()
         
         On Error Resume Next
         ' Verifica se o documento tem alterações não salvas
-        If doc.Saved = False Or doc.Path = "" Then
+        If doc.Saved = False Or doc.path = "" Then
             unsavedDocs.Add doc.Name
             LogMessage "Documento não salvo detectado: " & doc.Name
         End If
@@ -2881,7 +2925,7 @@ Private Function SalvarTodosDocumentos() As Boolean
         On Error Resume Next
         
         ' Se o documento nunca foi salvo (sem caminho), abre dialog
-        If doc.Path = "" Then
+        If doc.path = "" Then
             Dim saveDialog As Object
             Set saveDialog = Application.FileDialog(msoFileDialogSaveAs)
             
@@ -3000,7 +3044,7 @@ Private Function BackupAllImages(doc As Document) As Boolean
         Next i
         
         ' Backup de shapes flutuantes - apenas propriedades críticas
-        Dim floatingShape As Shape
+        Dim floatingShape As shape
         For i = 1 To doc.Shapes.Count
             Set floatingShape = doc.Shapes(i)
             
@@ -3073,7 +3117,7 @@ Private Function RestoreAllImages(doc As Document) As Boolean
             ElseIf .ImageType = "Floating" Then
                 ' Verifica e corrige propriedades de shapes flutuantes se ainda existem
                 If .ImageIndex <= doc.Shapes.Count Then
-                    Dim targetShape As Shape
+                    Dim targetShape As shape
                     Set targetShape = doc.Shapes(.ImageIndex)
                     
                     ' Verifica se as propriedades foram alteradas e corrige se necessário
@@ -3143,26 +3187,30 @@ Private Function ProtectImagesInRange(targetRange As Range) As Boolean
     
     ' Verifica se há imagens no range antes de aplicar formatação
     If targetRange.InlineShapes.Count > 0 Then
-        ' NOVO: Aplica formatação caractere por caractere, protegendo imagens
+        ' OTIMIZADO: Aplica formatação caractere por caractere, protegendo imagens
         Dim i As Long
         Dim charRange As Range
+        Dim charCount As Long
+        charCount = targetRange.Characters.Count ' Cache da contagem
         
-        For i = 1 To targetRange.Characters.Count
-            Set charRange = targetRange.Characters(i)
-            ' Só formata caracteres que não são parte de imagens
-            If charRange.InlineShapes.Count = 0 Then
-                With charRange.Font
-                    .Name = STANDARD_FONT
-                    .Size = STANDARD_FONT_SIZE
-                    .Color = wdColorAutomatic
-                End With
-            End If
-        Next i
+        If charCount > 0 Then ' Verificação de segurança
+            For i = 1 To charCount
+                Set charRange = targetRange.Characters(i)
+                ' Só formata caracteres que não são parte de imagens
+                If charRange.InlineShapes.Count = 0 Then
+                    With charRange.Font
+                        .Name = STANDARD_FONT
+                        .size = STANDARD_FONT_SIZE
+                        .Color = wdColorAutomatic
+                    End With
+                End If
+            Next i
+        End If
     Else
         ' Range sem imagens - formatação normal completa
         With targetRange.Font
             .Name = STANDARD_FONT
-            .Size = STANDARD_FONT_SIZE
+            .size = STANDARD_FONT_SIZE
             .Color = wdColorAutomatic
         End With
     End If
@@ -3224,7 +3272,6 @@ Private Function BackupViewSettings(doc As Document) As Boolean
         .ShowSpaces = docWindow.View.ShowSpaces
         .ShowTabs = docWindow.View.ShowTabs
         .ShowHiddenText = docWindow.View.ShowHiddenText
-        .ShowOptionalHyphens = docWindow.View.ShowOptionalHyphens
         .ShowAll = docWindow.View.ShowAll
         .ShowDrawings = docWindow.View.ShowDrawings
         .ShowObjectAnchors = docWindow.View.ShowObjectAnchors
@@ -3268,7 +3315,6 @@ Private Function RestoreViewSettings(doc As Document) As Boolean
         .ShowSpaces = originalViewSettings.ShowSpaces
         .ShowTabs = originalViewSettings.ShowTabs
         .ShowHiddenText = originalViewSettings.ShowHiddenText
-        .ShowOptionalHyphens = originalViewSettings.ShowOptionalHyphens
         .ShowAll = originalViewSettings.ShowAll
         .ShowDrawings = originalViewSettings.ShowDrawings
         .ShowObjectAnchors = originalViewSettings.ShowObjectAnchors
@@ -3289,10 +3335,6 @@ Private Function RestoreViewSettings(doc As Document) As Boolean
     ' Configurações específicas do Window (para réguas)
     docWindow.DisplayRulers = originalViewSettings.ShowHorizontalRuler
     docWindow.DisplayVerticalRuler = originalViewSettings.ShowVerticalRuler
-    
-    ' Configurações de barras de rolagem
-    docWindow.DisplayHorizontalScrollBar = originalViewSettings.DisplayHorizontalScrollBar
-    docWindow.DisplayVerticalScrollBar = originalViewSettings.DisplayVerticalScrollBar
     
     LogMessage "Configurações de visualização originais restauradas (zoom mantido em 110%)"
     RestoreViewSettings = True
@@ -3337,4 +3379,3 @@ Private Sub CleanupViewSettings()
     
     LogMessage "Variáveis de configurações de visualização limpas"
 End Sub
-
