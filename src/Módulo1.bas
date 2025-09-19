@@ -1243,7 +1243,7 @@ Private Function ApplyStdParagraphs(doc As Document) As Boolean
             skippedCount = skippedCount + 1
         End If
 
-        ' NOVO: Aplica formatação de parágrafo para TODOS os parágrafos
+        ' Aplica formatação de parágrafo para TODOS os parágrafos
         ' (independente se contêm imagens ou não)
         
         ' Limpeza robusta de espaços múltiplos - SEMPRE aplicada
